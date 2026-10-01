@@ -15,21 +15,28 @@ jobs:
       - name: Cài công cụ hệ thống
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git curl libxml2-dev libplist-dev
+          sudo apt-get install -y build-essential git curl wget libxml2-dev libplist-dev
 
       - name: Cài Theos
         run: |
-          git clone --depth 1 --branch master https://github.com/theos/theos.git /opt/theos
+          git clone --depth 1 https://github.com/theos/theos.git /opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
 
-      - name: Tải & cài iOS SDK
+      - name: Tải SDK + kiểm tra
         run: |
           mkdir -p /opt/theos/sdks
           cd /opt/theos/sdks
-          curl -L -o sdk.tar.xz "https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz"
-          tar -xf sdk.tar.xz
-          rm sdk.tar.xz
+          
+          # Tải với kiểm tra kích thước
+          wget -L --retry-connrefused --waitretry=5 --timeout=30 \
+            "https://github.com/theos/sdks/archive/refs/heads/main.tar.gz" -O sdks_repo.tar.gz
+          
+          # Giải nén toàn bộ sdks
+          tar -xzf sdks_repo.tar.gz --strip-components=2 "sdks-main/iPhoneOS15.0.sdk"
+          rm sdks_repo.tar.gz
+          
           ls -la
+          echo "✅ SDK đã sẵn sàng"
 
       - name: Sửa lỗi gói
         run: |
