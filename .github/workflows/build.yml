@@ -12,16 +12,20 @@ jobs:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cài công cụ
+      - name: Cài công cụ hệ thống
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git wget
+          sudo apt-get install -y build-essential git wget curl
 
-      - name: Cài Theos
+      - name: Cài Theos + cập nhật đầy đủ
         run: |
           git clone --depth 1 https://github.com/theos/theos.git /opt/theos
+          cd /opt/theos
+          # Chạy lệnh cập nhật chính thức của Theos → tải vendor/include + vendor/lib
+          ./bin/update-theos
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
 
-      - name: Tải SDK & đặt đúng tên Theos mong muốn
+      - name: Tải SDK & đặt đúng tên
         run: |
           mkdir -p /opt/theos/sdks
           cd /opt/theos/sdks
@@ -30,11 +34,11 @@ jobs:
           tar -xzf sdks.tar.gz --strip-components=1
           rm sdks.tar.gz
           
-          # Đổi tên SDK thành chính xác tên Theos đang tìm
+          # Đổi tên SDK khớp với Makefile
           mv -f iPhoneOS15.6.sdk iPhoneOS15.0.sdk
           
           ls -la
-          echo "✅ Đã sẵn sàng: iPhoneOS15.0.sdk"
+          echo "✅ Sẵn sàng biên dịch"
 
       - name: Sửa lỗi gói
         run: |
