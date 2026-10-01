@@ -10,13 +10,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cài Theos
+      - name: Cài Theos đầy đủ
         run: |
           git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          
+          # === Bước quan trọng: Tải thư viện phụ thuộc ===
+          cd $HOME/theos
+          $HOME/theos/bin/update-theos
+          
           # Bỏ thông báo chậm
           mkdir -p $HOME/.config/theos
           echo 'THEOS_IGNORE_PARALLEL_BUILDING_NOTICE = yes' >> $HOME/.config/theos/rc.mk
+
+      - name: Kiểm tra Theos
+        run: |
+          ls -la $THEOS/vendor/
+          echo "✅ Theos sẵn sàng"
 
       - name: Build
         run: |
