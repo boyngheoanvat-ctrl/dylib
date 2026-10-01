@@ -22,19 +22,18 @@ jobs:
           git clone --depth 1 https://github.com/theos/theos.git /opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
 
-      - name: Tải SDK trực tiếp từ kho
+      - name: Tải SDK & tìm đúng tên
         run: |
           mkdir -p /opt/theos/sdks
           cd /opt/theos/sdks
           
-          # Tải toàn kho sdks → lấy SDK ra
           wget -L "https://github.com/theos/sdks/archive/refs/heads/master.tar.gz" -O sdks.tar.gz
           
-          # Kiểm tra
-          ls -lh sdks.tar.gz
+          # Liệt kê tất cả thư mục bên trong
+          tar -tf sdks.tar.gz | grep "sdk/$" | head -10
           
-          # Giải nén chỉ lấy iPhoneOS15.0.sdk
-          tar -xzf sdks.tar.gz --strip-components=2 "sdks-master/iPhoneOS15.0.sdk"
+          # Trích xuất toàn bộ thư mục sdks
+          tar -xzf sdks.tar.gz --strip-components=1
           rm sdks.tar.gz
           
           ls -la
