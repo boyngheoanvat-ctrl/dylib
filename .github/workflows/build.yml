@@ -12,27 +12,25 @@ jobs:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cài Theos + SDK chính xác
+      - name: Cài Theos đã đóng gói sẵn
         run: |
-          # Clone Theos
-          git clone --depth=1 https://github.com/theos/theos.git /opt/theos
+          # Cài Theos từ gói ổn định, không clone từ git
+          wget -q https://github.com/theos/theos/archive/refs/heads/master.tar.gz -O /tmp/theos.tar.gz
+          mkdir -p /opt/theos
+          tar -xzf /tmp/theos.tar.gz -C /opt/theos --strip-components=1
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
           
-          # Vào thư mục sdks & tải đúng định dạng
+          # Tải SDK chính xác
+          mkdir -p /opt/theos/sdks
           cd /opt/theos/sdks
-          wget -q https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz
-          ls -la
-          
-          # Giải nén
+          wget -q --no-check-certificate "https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz"
           tar -xf iPhoneOS15.0.sdk.tar.xz
-          rm iPhoneOS15.0.sdk.tar.xz
-          ls -la
+          rm iPhoneOS15.0.sdk.tar.xz /tmp/theos.tar.gz
 
-      - name: Sửa lỗi gói & cài công cụ
+      - name: Cài công cụ biên dịch
         run: |
-          sed -i 's/lzma/gzip/g' /opt/theos/makefiles/package/deb.mk
           sudo apt-get update
-          sudo apt-get install -y libio-compress-lzma-perl build-essential git wget
+          sudo apt-get install -y build-essential clang git libplist-dev
 
       - name: Biên dịch
         run: |
