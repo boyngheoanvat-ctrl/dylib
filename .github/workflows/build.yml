@@ -17,11 +17,22 @@ jobs:
           git clone --depth=1 https://github.com/theos/theos.git /opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
 
-      - name: Cài công cụ
-        run: sudo apt-get update && sudo apt-get install -y build-essential git
+      - name: Sửa lỗi dm.pl + nén
+        run: |
+          # Sửa deb.mk dùng gzip thay vì lzma
+          sed -i 's/_THEOS_PLATFORM_DPKG_DEB_COMPRESSION ?= lzma/_THEOS_PLATFORM_DPKG_DEB_COMPRESSION ?= gzip/' /opt/theos/makefiles/package/deb.mk
+          # Cài module Perl cần thiết
+          sudo apt-get update && sudo apt-get install -y libio-compress-lzma-perl
 
-      - name: Biên dịch
-        run: make clean && make package
+      - name: Cài công cụ biên dịch
+        run: |
+          sudo apt-get update && sudo apt-get install -y build-essential git bison flex libplist-dev libxml2-dev
+
+      - name: Biên dịch (chỉ build, không gói deb)
+        run: |
+          export THEOS=/opt/theos
+          make clean
+          make # ← Chỉ tạo .dylib, bỏ qua package gây lỗi
 
       - name: Tải file .dylib
         uses: actions/upload-artifact@v4
