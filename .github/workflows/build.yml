@@ -1,4 +1,4 @@
-name: Build dylib — Theos
+name: Build dylib — Tìm ra file
 on:
   push:
     branches: [main, master]
@@ -25,25 +25,30 @@ jobs:
           mkdir -p $HOME/.config/theos
           echo 'THEOS_IGNORE_PARALLEL_BUILDING_NOTICE = yes' >> $HOME/.config/theos/rc.mk
 
-      - name: Build
+      - name: Build + Liệt kê TẤT CẢ
         run: |
           make clean
           make
           
-          # === Xem file ở đâu để biết chính xác ===
-          echo "=== Tất cả file .dylib ==="
-          find . -name "*.dylib"
-          echo "=== Nội dung thư mục hiện tại ==="
+          echo "=== 🔍 TÌM TẤT CẢ .dylib ==="
+          find "$PWD" -name "*.dylib" -type f
+          
+          echo "=== 📂 Cấu trúc thư mục ==="
           ls -la
-          echo "=== Nội dung obj ==="
-          ls -la .theos/obj/ 2>/dev/null || echo "Không có .theos/obj"
+          
+          echo "=== 📂 Thư mục .theos ==="
+          ls -laR .theos/ 2>/dev/null || echo "Không có .theos"
+          
+          echo "=== 📂 Thư mục obj ==="
+          ls -laR obj/ 2>/dev/null || echo "Không có obj"
 
-      - name: Tải .dylib
+      - name: Tải file — mọi vị trí
         uses: actions/upload-artifact@v4
         with:
           name: libmodmenu
           path: |
-            ./*.dylib
-            .theos/obj/*.dylib
-            .theos/obj/debug/*.dylib
+            *.dylib
+            .theos/**/*.dylib
+            obj/**/*.dylib
+            $PWD/**/*.dylib
           retention-days: 14
