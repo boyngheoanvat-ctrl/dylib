@@ -6,6 +6,6 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = FullBypass
 
 FullBypass_FILES = FullBypass.mm fishhook.c
-FullBypass_CXXFLAGS = -fobjc-arc -std=c++17
+FullBypass_CXXFLAGS = -fobjc-arc -std=c++17 -w
 
 include $(THEOS_MAKE_PATH)/tweak.mk
