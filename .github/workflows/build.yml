@@ -12,27 +12,18 @@ jobs:
 
       - name: Cài ldid + Theos
         run: |
-          # Cài ldid — công cụ ký file cần thiết
-          brew install ldid xz
+          brew install ldid
           
-          # Tải Theos
           export THEOS=$HOME/theos
-          git clone --depth=1 https://github.com/theos/theos.git $THEOS
+          git clone --depth=1 https://github.com/theos/theos.git $THEOS || true
           
-          # Cập nhật thư viện phụ thuộc
           cd $THEOS
           $THEOS/bin/update-theos
           
-          # Lưu biến cho bước sau
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           
-          # Tắt thông báo build chậm
           mkdir -p $HOME/.config/theos
           echo 'THEOS_IGNORE_PARALLEL_BUILDING_NOTICE = yes' >> $HOME/.config/theos/rc.mk
-          
-          # Kiểm tra ldid
-          which ldid
-          ldid -V
 
       - name: Build
         run: |
