@@ -1,12 +1,24 @@
-ARCHS = arm64
-TARGET = iphone:clang:15.0:14.0
-INSTALL_TARGET_PROCESSES = TÊN_APP_CỦA_BẠN
+# Makefile — Build .dylib cho iOS ARM64
 
-include $(THEOS)/makefiles/common.mk
+CC = clang++
+ARCH = arm64
+SYSROOT = $(shell xcrun --sdk iphoneos --show-sdk-path)
+CFLAGS = -arch $(ARCH) -isysroot $(SYSROOT) -std=c++17 -fPIC -O3
+LDFLAGS = -dynamiclib -arch $(ARCH) -isysroot $(SYSROOT)
 
-TWEAK_NAME = FullBypass
-FullBypass_FILES = FullBypass.x
-FullBypass_CFLAGS = -fobjc-arc -w
-FullBypass_FRAMEWORKS = Foundation
+# === TÊN FILE NGUỒN ===
+# Nếu file nguồn của bạn có tên khác → sửa ở đây
+SOURCES = Main.cpp A64Hook.cpp
+HEADERS = Macros.h
 
-include $(THEOS_MAKE_PATH)/tweak.mk
+OUTPUT = libmodmenu.dylib
+
+all: $(OUTPUT)
+
+$(OUTPUT): $(SOURCES) $(HEADERS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
+	@echo "✅ Tạo xong: $(OUTPUT)"
+	@lipo -info $(OUTPUT)
+
+clean:
+	rm -f $(OUTPUT) *.o
