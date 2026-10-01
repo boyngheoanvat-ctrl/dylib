@@ -1,0 +1,30 @@
+name: Build FullBypass
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài Theos
+        run: |
+          git clone --depth=1 https://github.com/theos/theos.git /opt/theos
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
+
+      - name: Cài công cụ
+        run: sudo apt-get update && sudo apt-get install -y build-essential git
+
+      - name: Biên dịch
+        run: make clean && make package
+
+      - name: Tải file .dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: FullBypass.dylib
+          path: .theos/obj/arm64/FullBypass.dylib
