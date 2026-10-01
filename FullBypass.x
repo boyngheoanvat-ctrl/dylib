@@ -1,110 +1,73 @@
 // ==================================================
-// BYPASS CHỈ HÀM CỐT LÕI — BÁO CÁO / BAN / BẢO MẬT
+// BYPASS BÁO CÁO / BẢO MẬT — DÙNG KÝ HIỆU ĐỘNG
 // ==================================================
 #import <Foundation/Foundation.h>
 #import <substrate.h>
+#import <substrate/dynamic.h>
 
-// === KHAI BÁO HÀM ĐỂ BIÊN DỊCH HIỂU ===
-extern int Report_s(void*);
-extern int ReportError_s(void*);
-extern int ReportToTdm_s(void*);
-extern int ReportToTdmEx_s(void*);
-extern int FaaSBrokerReport_s(void*);
-extern int ReportEventByName(void*);
-extern int ReportEvent(void*);
-extern int ReportPayEvent(void*);
-extern int ApolloReportEvent(void*);
-extern int SecurityCheckReq(void*);
-extern int ReportBindEvent(void*);
-extern int Event_CommonReport(void*);
-extern int EventPhotoReport(void*);
+// === KHAI BÁO KIỂU HÀM ===
+typedef int (*Fn_void)(void*);
+typedef int (*Fn_Report)(void*);
 
-extern int IsDebug_s(void*);
-extern int IsDebugByInternalPlatformConfig_s(void*);
-extern int IsRootChanged(void*);
+// === CON TRỎ HÀM GỐC ===
+static Fn_void orig_Report_s = NULL;
+static Fn_void orig_ReportToTdm_s = NULL;
+static Fn_void orig_ReportEventByName = NULL;
+static Fn_void orig_ReportEvent = NULL;
+static Fn_void orig_SecurityCheckReq = NULL;
+static Fn_void orig_Event_CommonReport = NULL;
+static Fn_void orig_EventPhotoReport = NULL;
+static Fn_void orig_IsDebug_s = NULL;
+static Fn_void orig_IsRootChanged = NULL;
+static Fn_void orig_RefreshPunishTime = NULL;
+static Fn_void orig_OnReportConfirm = NULL;
+static Fn_void orig_On_InBattleMsg_ReportConfirm = NULL;
+static Fn_void orig_reportInfo = NULL;
+static Fn_void orig_handleReportInfoResult = NULL;
 
-extern int RefreshPunishTime(void*);
-extern int GetPunishTextStr(void*);
-extern int OnReportConfirm(void*);
-extern int On_InBattleMsg_ReportClick(void*);
-extern int On_InBattleMsg_ReportConfirm(void*);
-extern int On_InBattleMsg_CancleReport(void*);
-extern int NGameChannelResult2ReportType(void*);
-extern int reportInfo(void*);
-extern int handleReportInfoResult(void*);
-extern int reportToTLog(void*);
+// === HÀM GHI ĐÈ — TRẢ VỀ KHÔNG GÌ ===
+static int hook_NoOp(void* ctx) { return 0; }
 
-// === NHÓM 1: Gửi báo cáo / phân tích ===
-static int (*orig_Report_s)(void*) = NULL;
-static int hook_Report_s(void* ctx) { return 0; }
-
-static int (*orig_ReportToTdm_s)(void*) = NULL;
-static int hook_ReportToTdm_s(void* ctx) { return 0; }
-
-static int (*orig_ReportEventByName)(void*) = NULL;
-static int hook_ReportEventByName(void* ctx) { return 0; }
-
-static int (*orig_ReportEvent)(void*) = NULL;
-static int hook_ReportEvent(void* ctx) { return 0; }
-
-static int (*orig_SecurityCheckReq)(void*) = NULL;
-static int hook_SecurityCheckReq(void* ctx) { return 0; }
-
-static int (*orig_Event_CommonReport)(void*) = NULL;
-static int hook_Event_CommonReport(void* ctx) { return 0; }
-
-static int (*orig_EventPhotoReport)(void*) = NULL;
-static int hook_EventPhotoReport(void* ctx) { return 0; }
-
-// === NHÓM 2: Kiểm tra bảo mật / debug ===
-static int (*orig_IsDebug_s)(void*) = NULL;
-static int hook_IsDebug_s(void* ctx) { return 0; }
-
-static int (*orig_IsRootChanged)(void*) = NULL;
-static int hook_IsRootChanged(void* ctx) { return 0; }
-
-// === NHÓM 3: Xử lý phạt / ban ===
-static int (*orig_RefreshPunishTime)(void*) = NULL;
-static int hook_RefreshPunishTime(void* ctx) { return 0; }
-
-static int (*orig_OnReportConfirm)(void*) = NULL;
-static int hook_OnReportConfirm(void* ctx) { return 0; }
-
-static int (*orig_On_InBattleMsg_ReportConfirm)(void*) = NULL;
-static int hook_On_InBattleMsg_ReportConfirm(void* ctx) { return 0; }
-
-static int (*orig_reportInfo)(void*) = NULL;
-static int hook_reportInfo(void* ctx) { return 0; }
-
-static int (*orig_handleReportInfoResult)(void*) = NULL;
-static int hook_handleReportInfoResult(void* ctx) { return 0; }
-
-// === KHỞI TẠO ===
+// === KHỞI TẠO ĐỘNG ===
 __attribute__((constructor))
 static void AntiBypassInit(void) {
     @autoreleasepool {
-        NSLog(@"[AntiBypass] ✅ Đang kích hoạt...");
-        
-        // Gửi báo cáo → Bỏ qua
-        MSHookFunction((void*)&Report_s, (void*)hook_Report_s, (void**)&orig_Report_s);
-        MSHookFunction((void*)&ReportToTdm_s, (void*)hook_ReportToTdm_s, (void**)&orig_ReportToTdm_s);
-        MSHookFunction((void*)&ReportEventByName, (void*)hook_ReportEventByName, (void**)&orig_ReportEventByName);
-        MSHookFunction((void*)&ReportEvent, (void*)hook_ReportEvent, (void**)&orig_ReportEvent);
-        MSHookFunction((void*)&SecurityCheckReq, (void*)hook_SecurityCheckReq, (void**)&orig_SecurityCheckReq);
-        MSHookFunction((void*)&Event_CommonReport, (void*)hook_Event_CommonReport, (void**)&orig_Event_CommonReport);
-        MSHookFunction((void*)&EventPhotoReport, (void*)hook_EventPhotoReport, (void**)&orig_EventPhotoReport);
-        
-        // Kiểm tra bảo mật → Luôn trả về không phát hiện
-        MSHookFunction((void*)&IsDebug_s, (void*)hook_IsDebug_s, (void**)&orig_IsDebug_s);
-        MSHookFunction((void*)&IsRootChanged, (void*)hook_IsRootChanged, (void**)&orig_IsRootChanged);
-        
-        // Xử lý phạt/báo cáo → Không thực thi
-        MSHookFunction((void*)&RefreshPunishTime, (void*)hook_RefreshPunishTime, (void**)&orig_RefreshPunishTime);
-        MSHookFunction((void*)&OnReportConfirm, (void*)hook_OnReportConfirm, (void**)&orig_OnReportConfirm);
-        MSHookFunction((void*)&On_InBattleMsg_ReportConfirm, (void*)hook_On_InBattleMsg_ReportConfirm, (void**)&orig_On_InBattleMsg_ReportConfirm);
-        MSHookFunction((void*)&reportInfo, (void*)hook_reportInfo, (void**)&orig_reportInfo);
-        MSHookFunction((void*)&handleReportInfoResult, (void*)hook_handleReportInfoResult, (void**)&orig_handleReportInfoResult);
-        
-        NSLog(@"[AntiBypass] ✅ HOÀN TẤT — Báo cáo & Bảo mật đã bị vô hiệu hóa!");
+        NSLog(@"[AntiBypass] ✅ Đang tải ký hiệu động...");
+
+        // === Nhóm: Báo cáo ===
+        MSDynamicHookSymbol("_Report_s",
+            (void*)hook_NoOp, (void**)&orig_Report_s);
+        MSDynamicHookSymbol("_ReportToTdm_s",
+            (void*)hook_NoOp, (void**)&orig_ReportToTdm_s);
+        MSDynamicHookSymbol("_ReportEventByName",
+            (void*)hook_NoOp, (void**)&orig_ReportEventByName);
+        MSDynamicHookSymbol("_ReportEvent",
+            (void*)hook_NoOp, (void**)&orig_ReportEvent);
+        MSDynamicHookSymbol("_SecurityCheckReq",
+            (void*)hook_NoOp, (void**)&orig_SecurityCheckReq);
+        MSDynamicHookSymbol("_Event_CommonReport",
+            (void*)hook_NoOp, (void**)&orig_Event_CommonReport);
+        MSDynamicHookSymbol("_EventPhotoReport",
+            (void*)hook_NoOp, (void**)&orig_EventPhotoReport);
+
+        // === Nhóm: Kiểm tra bảo mật ===
+        MSDynamicHookSymbol("_IsDebug_s",
+            (void*)hook_NoOp, (void**)&orig_IsDebug_s);
+        MSDynamicHookSymbol("_IsRootChanged",
+            (void*)hook_NoOp, (void**)&orig_IsRootChanged);
+
+        // === Nhóm: Xử lý phạt / thông báo ===
+        MSDynamicHookSymbol("_RefreshPunishTime",
+            (void*)hook_NoOp, (void**)&orig_RefreshPunishTime);
+        MSDynamicHookSymbol("_OnReportConfirm",
+            (void*)hook_NoOp, (void**)&orig_OnReportConfirm);
+        MSDynamicHookSymbol("_On_InBattleMsg_ReportConfirm",
+            (void*)hook_NoOp, (void**)&orig_On_InBattleMsg_ReportConfirm);
+        MSDynamicHookSymbol("_reportInfo",
+            (void*)hook_NoOp, (void**)&orig_reportInfo);
+        MSDynamicHookSymbol("_handleReportInfoResult",
+            (void*)hook_NoOp, (void**)&orig_handleReportInfoResult);
+
+        NSLog(@"[AntiBypass] ✅ HOÀN TẤT — Tất cả hàm đã được bỏ qua!");
     }
 }
