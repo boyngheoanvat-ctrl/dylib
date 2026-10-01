@@ -1,19 +1,14 @@
-CC = clang++
-ARCH = arm64
-SYSROOT = $(shell xcrun --sdk iphoneos --show-sdk-path)
-CFLAGS = -arch $(ARCH) -isysroot $(SYSROOT) -std=c++17 -fPIC -O3
-LDFLAGS = -dynamiclib -arch $(ARCH) -isysroot $(SYSROOT)
+ARCHS = arm64
+TARGET = iphone:clang:latest:14.0
 
-# === Đổi đuôi .mm ===
-SOURCES = FullBypass.mm
-OUTPUT = libmodmenu.dylib
+INSTALL_PROGRAM = $(THEOS)/bin/install
 
-all: $(OUTPUT)
+include $(THEOS)/makefiles/common.mk
 
-$(OUTPUT): $(SOURCES)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
-	@echo "✅ Tạo xong: $(OUTPUT)"
-	@lipo -info $(OUTPUT)
+TWEAK_NAME = FullBypass
 
-clean:
-	rm -f $(OUTPUT) *.o
+FullBypass_FILES = FullBypass.mm
+FullBypass_CFLAGS = -fobjc-arc
+FullBypass_FRAMEWORKS = Foundation
+
+include $(THEOS_MAKE_PATH)/tweak.mk
