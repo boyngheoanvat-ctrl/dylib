@@ -8,33 +8,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: ghcr.io/itsnep/theos:latest
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cài Theos đã đóng gói sẵn
-        run: |
-          # Cài Theos từ gói ổn định, không clone từ git
-          wget -q https://github.com/theos/theos/archive/refs/heads/master.tar.gz -O /tmp/theos.tar.gz
-          mkdir -p /opt/theos
-          tar -xzf /tmp/theos.tar.gz -C /opt/theos --strip-components=1
-          echo "THEOS=/opt/theos" >> $GITHUB_ENV
-          
-          # Tải SDK chính xác
-          mkdir -p /opt/theos/sdks
-          cd /opt/theos/sdks
-          wget -q --no-check-certificate "https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz"
-          tar -xf iPhoneOS15.0.sdk.tar.xz
-          rm iPhoneOS15.0.sdk.tar.xz /tmp/theos.tar.gz
-
-      - name: Cài công cụ biên dịch
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang git libplist-dev
-
       - name: Biên dịch
         run: |
-          export THEOS=/opt/theos
+          export THEOS=/theos
           make clean
           make
 
