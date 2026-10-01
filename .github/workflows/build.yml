@@ -1,31 +1,42 @@
-name: Build Mod
+name: Build iOS .dylib
 
-on: push
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-ios:
+    name: Build for iOS .dylib
+    runs-on: macos-latest  # ✅ Phải chạy trên macOS mới ra .dylib
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26d
-
-      - name: Build
+      - name: Build .dylib
         run: |
           mkdir -p build && cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-24
-          cmake --build .
+          
+          # Biên dịch cho ARM64 iOS
+          clang++ -c -arch arm64 -std=c++17 \
+            -I../src/main/jni/Includes \
+            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+            -fPIC \
+            ../src/main/jni/Main.cpp \
+            ../src/main/jni/Includes/A64Hook.cpp
 
-      - name: Upload .so / .dylib
+          # Tạo thư viện .dylib
+          clang++ -dynamiclib -arch arm64 \
+            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+            -o libmodmenu.dylib \
+            *.o
+
+          ls -lh libmodmenu.dylib
+
+      - name: Upload .dylib
         uses: actions/upload-artifact@v4
         with:
-          name: ModLibrary
-          path: |
-            build/**/*.so
-            build/**/*.dylib
-          retention-days: 7
+          name: ModMenu-iOS-dylib
+          files: build/libmodmenu.dylib
+          retention-days: 14
