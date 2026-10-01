@@ -22,33 +22,29 @@ jobs:
           git clone --depth 1 https://github.com/theos/theos.git /opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
 
-      - name: Tải SDK & lấy tên chính xác
+      - name: Tải SDK & chọn đúng phiên bản
         run: |
           mkdir -p /opt/theos/sdks
           cd /opt/theos/sdks
           
           wget -L "https://github.com/theos/sdks/archive/refs/heads/master.tar.gz" -O sdks.tar.gz
           
-          # Liệt kê toàn bộ SDK có sẵn
-          tar -tf sdks.tar.gz | grep -E "iPhoneOS.*\.sdk/$"
-          
           # Giải nén toàn bộ
           tar -xzf sdks.tar.gz --strip-components=1
           rm sdks.tar.gz
           
-          # Lấy tên SDK mới nhất
-          SDK_NAME=$(ls -d /opt/theos/sdks/iPhoneOS*.sdk | xargs basename)
+          # Chọn SDK mới nhất có sẵn — ở đây là 15.6
+          SDK_NAME="iPhoneOS15.6.sdk"
           echo "FOUND_SDK=$SDK_NAME" >> $GITHUB_ENV
-          echo "✅ Tìm thấy SDK: $SDK_NAME"
+          ls -la $SDK_NAME/
+          echo "✅ Sử dụng SDK: $SDK_NAME"
 
-      - name: Cập nhật Makefile khớp SDK
+      - name: Cập nhật Makefile
         run: |
-          # Thay đổi tên SDK trong Makefile nếu cần
           if [ -f Makefile ]; then
-            sed -i "s/iPhoneOS[0-9.]*\.sdk/$FOUND_SDK/" Makefile
+            sed -i "s/iPhoneOS[0-9.]*\.sdk/$FOUND_SDK/g" Makefile
             echo "✅ Đã cập nhật Makefile dùng $FOUND_SDK"
           fi
-          cat Makefile
 
       - name: Sửa lỗi gói
         run: |
@@ -58,7 +54,6 @@ jobs:
       - name: Biên dịch
         run: |
           export THEOS=/opt/theos
-          export THEOS_SDK_NAME=$FOUND_SDK
           make clean
           make
 
