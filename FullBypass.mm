@@ -1,54 +1,36 @@
 #import <Foundation/Foundation.h>
-#import "fishhook.h"
-
-typedef void (*FuncVoid_t)(void*);
-typedef int  (*FuncInt_t)(void*);
-
-static FuncVoid_t orig_Report_s;
-static FuncVoid_t orig_ReportToTdm_s;
-static FuncVoid_t orig_ReportEventByName;
-static FuncVoid_t orig_ReportEvent;
-static FuncVoid_t orig_SecurityCheckReq;
-static FuncVoid_t orig_Event_CommonReport;
-static FuncVoid_t orig_EventPhotoReport;
-
-static FuncInt_t orig_IsDebug_s;
-static FuncInt_t orig_IsRootChanged;
-
-static FuncVoid_t orig_RefreshPunishTime;
-static FuncVoid_t orig_OnReportConfirm;
-static FuncVoid_t orig_On_InBattleMsg_ReportConfirm;
-static FuncVoid_t orig_reportInfo;
-static FuncVoid_t orig_handleReportInfoResult;
-
-static void NoOp_void(void* arg) { }
-static int NoOp_zero(void* arg) { return 0; }
+#import <UIKit/UIKit.h>
+#import <dlfcn.h>
+#import <mach-o/dyld.h>
+#import <mach-o/loader.h>
 
 __attribute__((constructor))
 static void DylibMain(void) {
-    @autoreleasepool {
-        NSLog(@"[Bypass] 🚀 Đang nạp...");
-
-        struct rebinding binds[] = {
-            {"_Report_s",                   (void*)NoOp_void,        (void**)&orig_Report_s},
-            {"_ReportToTdm_s",              (void*)NoOp_void,        (void**)&orig_ReportToTdm_s},
-            {"_ReportEventByName",          (void*)NoOp_void,        (void**)&orig_ReportEventByName},
-            {"_ReportEvent",                (void*)NoOp_void,        (void**)&orig_ReportEvent},
-            {"_SecurityCheckReq",           (void*)NoOp_void,        (void**)&orig_SecurityCheckReq},
-            {"_Event_CommonReport",         (void*)NoOp_void,        (void**)&orig_Event_CommonReport},
-            {"_EventPhotoReport",           (void*)NoOp_void,        (void**)&orig_EventPhotoReport},
-            {"_IsDebug_s",                  (void*)NoOp_zero,        (void**)&orig_IsDebug_s},
-            {"_IsRootChanged",              (void*)NoOp_zero,        (void**)&orig_IsRootChanged},
-            {"_RefreshPunishTime",          (void*)NoOp_void,        (void**)&orig_RefreshPunishTime},
-            {"_OnReportConfirm",            (void*)NoOp_void,        (void**)&orig_OnReportConfirm},
-            {"_On_InBattleMsg_ReportConfirm", (void*)NoOp_void,      (void**)&orig_On_InBattleMsg_ReportConfirm},
-            {"_reportInfo",                 (void*)NoOp_void,        (void**)&orig_reportInfo},
-            {"_handleReportInfoResult",     (void*)NoOp_void,        (void**)&orig_handleReportInfoResult},
-        };
-
-        int count = sizeof(binds) / sizeof(binds[0]);
-        rebind_symbols(binds, count);
-        
-        NSLog(@"[Bypass] ✅ Đã hook %d hàm — SẴN SÀNG!", count);
+    // In ra ngay khi nạp — KHÔNG CẦN GÌ KHÁC
+    NSLog(@"[Bypass] ===================================");
+    NSLog(@"[Bypass] ✅ DYLIB ĐƯỢC NẠP THÀNH CÔNG!");
+    NSLog(@"[Bypass] ===================================");
+    
+    // In thông tin app
+    NSString *appId = [[NSBundle mainBundle] bundleIdentifier];
+    NSLog(@"[Bypass] 📦 App ID: %@", appId);
+    
+    // Liệt kê vài hàm hệ thống để kiểm tra
+    void *p = dlsym(RTLD_DEFAULT, "_dyld_image_count");
+    NSLog(@"[Bypass] 🔧 _dyld_image_count: %p", p);
+    
+    // Tìm vài hàm thực tế có trong app
+    const char *syms[] = {
+        "gsMain",
+        "UnityRuntimeSendMessage",
+        "_ZN3bq11NetworkMgr13InstanceDataE",
+        NULL
+    };
+    
+    for (int i = 0; syms[i]; i++) {
+        void *addr = dlsym(RTLD_DEFAULT, syms[i]);
+        NSLog(@"[Bypass] 🔍 %s: %p", syms[i], addr);
     }
+    
+    NSLog(@"[Bypass] ✅ Kết thúc khởi tạo");
 }
