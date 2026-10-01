@@ -1,4 +1,4 @@
-name: Build iOS .dylib
+name: Build dylib
 
 on:
   push:
@@ -6,37 +6,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ios:
-    name: Build for iOS .dylib
-    runs-on: macos-latest  # ✅ Phải chạy trên macOS mới ra .dylib
+  build:
+    name: Build .dylib
+    runs-on: macos-latest  # ✅ Bắt buộc macOS cho .dylib
 
     steps:
-      - name: Checkout code
+      - name: Tải mã nguồn
         uses: actions/checkout@v4
 
-      - name: Build .dylib
+      - name: Kiểm tra file
         run: |
-          mkdir -p build && cd build
-          
-          # Biên dịch cho ARM64 iOS
-          clang++ -c -arch arm64 -std=c++17 \
-            -I../src/main/jni/Includes \
-            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-            -fPIC \
-            ../src/main/jni/Main.cpp \
-            ../src/main/jni/Includes/A64Hook.cpp
+          echo "=== File trong thư mục ==="
+          ls -la
+          echo "=== Có Makefile không? ==="
+          test -f Makefile && echo "✅ Có Makefile" || echo "❌ Không thấy Makefile"
 
-          # Tạo thư viện .dylib
-          clang++ -dynamiclib -arch arm64 \
-            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-            -o libmodmenu.dylib \
-            *.o
-
-          ls -lh libmodmenu.dylib
+      - name: Build với Makefile
+        run: |
+          make clean 2>/dev/null || true
+          make
+          echo "=== Kết quả sau build ==="
+          ls -lh *.dylib 2>/dev/null || ls -lh
 
       - name: Upload .dylib
         uses: actions/upload-artifact@v4
         with:
-          name: ModMenu-iOS-dylib
-          files: build/libmodmenu.dylib
+          name: libmodmenu.dylib
+          path: |
+            *.dylib
+            !Makefile
+            !README.md
           retention-days: 14
