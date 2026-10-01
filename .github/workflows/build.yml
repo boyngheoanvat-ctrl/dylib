@@ -29,6 +29,14 @@ jobs:
         run: |
           make clean
           make
+          
+          # === Xem file ở đâu để biết chính xác ===
+          echo "=== Tất cả file .dylib ==="
+          find . -name "*.dylib"
+          echo "=== Nội dung thư mục hiện tại ==="
+          ls -la
+          echo "=== Nội dung obj ==="
+          ls -la .theos/obj/ 2>/dev/null || echo "Không có .theos/obj"
 
       - name: Tải .dylib
         uses: actions/upload-artifact@v4
@@ -36,5 +44,6 @@ jobs:
           name: libmodmenu
           path: |
             ./*.dylib
-            ./obj/*.dylib
+            .theos/obj/*.dylib
+            .theos/obj/debug/*.dylib
           retention-days: 14
