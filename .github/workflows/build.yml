@@ -15,36 +15,26 @@ jobs:
       - name: Cài công cụ
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git wget libxml2-dev libplist-dev
+          sudo apt-get install -y build-essential git wget
 
       - name: Cài Theos
         run: |
           git clone --depth 1 https://github.com/theos/theos.git /opt/theos
-          echo "THEOS=/opt/theos" >> $GITHUB_ENV
 
-      - name: Tải SDK & chọn đúng phiên bản
+      - name: Tải SDK & đặt đúng tên Theos mong muốn
         run: |
           mkdir -p /opt/theos/sdks
           cd /opt/theos/sdks
           
           wget -L "https://github.com/theos/sdks/archive/refs/heads/master.tar.gz" -O sdks.tar.gz
-          
-          # Giải nén toàn bộ
           tar -xzf sdks.tar.gz --strip-components=1
           rm sdks.tar.gz
           
-          # Chọn SDK mới nhất có sẵn — ở đây là 15.6
-          SDK_NAME="iPhoneOS15.6.sdk"
-          echo "FOUND_SDK=$SDK_NAME" >> $GITHUB_ENV
-          ls -la $SDK_NAME/
-          echo "✅ Sử dụng SDK: $SDK_NAME"
-
-      - name: Cập nhật Makefile
-        run: |
-          if [ -f Makefile ]; then
-            sed -i "s/iPhoneOS[0-9.]*\.sdk/$FOUND_SDK/g" Makefile
-            echo "✅ Đã cập nhật Makefile dùng $FOUND_SDK"
-          fi
+          # Đổi tên SDK thành chính xác tên Theos đang tìm
+          mv -f iPhoneOS15.6.sdk iPhoneOS15.0.sdk
+          
+          ls -la
+          echo "✅ Đã sẵn sàng: iPhoneOS15.0.sdk"
 
       - name: Sửa lỗi gói
         run: |
