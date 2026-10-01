@@ -1,7 +1,5 @@
 #import <Foundation/Foundation.h>
-#import <mach-o/dyld.h>
-#import <stdint.h>
-#import <fishhook/fishhook.h>
+#import "fishhook.h"  // ✅ Đổi từ <...> thành "..."
 
 // ==============================================
 // Khai báo hàm gốc
@@ -24,25 +22,23 @@ static void (*orig_reportInfo)(void*);
 static void (*orig_handleReportInfoResult)(void*);
 
 // ==============================================
-// Hàm chặn — trả về luôn, không làm gì
+// Hàm chặn
 // ==============================================
 static void NoOp_void(void* arg) {
-    // Bỏ qua hoàn toàn
 }
 
 static int NoOp_zero(void* arg) {
-    return 0; // Nói không phát hiện gì
+    return 0;
 }
 
 // ==============================================
-// Bắt đầu khi nạp dylib
+// Khởi động
 // ==============================================
 __attribute__((constructor))
 static void DylibMain(void) {
     @autoreleasepool {
-        NSLog(@"[Bypass] 🚀 Đang khởi động...");
+        NSLog(@"[Bypass] 🚀 Đang nạp...");
 
-        // Mảng hook — dùng fishhook, KHÔNG cần Substrate
         struct rebinding binds[] = {
             {"_Report_s",                   NoOp_void,        (void**)&orig_Report_s},
             {"_ReportToTdm_s",              NoOp_void,        (void**)&orig_ReportToTdm_s},
@@ -63,10 +59,8 @@ static void DylibMain(void) {
         };
 
         int count = sizeof(binds) / sizeof(binds[0]);
-        
-        // Thực hiện hook tất cả
         rebind_symbols(binds, count);
         
-        NSLog(@"[Bypass] ✅ Đã xử lý %d hàm — SẴN SÀNG!", count);
+        NSLog(@"[Bypass] ✅ Đã hook %d hàm — SẴN SÀNG!", count);
     }
 }
