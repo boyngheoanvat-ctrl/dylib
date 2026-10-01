@@ -7,47 +7,53 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
-      - name: Cài công cụ hệ thống
+      - name: Cài phụ thuộc hệ thống
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential git wget curl
+          sudo apt-get update && sudo apt-get install -y \
+            build-essential git perl libssl-dev curl wget zip unzip xz-utils libtinfo6 \
+            libio-compress-lzma-perl
 
-      - name: Cài Theos + cập nhật đầy đủ
+      - name: Cài Theos
         run: |
-          git clone --depth 1 https://github.com/theos/theos.git /opt/theos
-          cd /opt/theos
-          # Chạy lệnh cập nhật chính thức của Theos → tải vendor/include + vendor/lib
-          ./bin/update-theos
-          echo "THEOS=/opt/theos" >> $GITHUB_ENV
+          git clone --depth=1 --recursive https://github.com/theos/theos.git "$GITHUB_WORKSPACE/theos"
+          echo "THEOS=$GITHUB_WORKSPACE/theos" >> $GITHUB_ENV
+
+      - name: Cài Toolchain biên dịch
+        run: |
+          cd "$THEOS"
+          mkdir -p toolchain
+          curl -sL https://github.com/L1ghtmann/llvm-project/releases/latest/download/iOSToolchain-x86_64.tar.xz | tar -xJvf - -C toolchain/
 
       - name: Tải SDK & đặt đúng tên
         run: |
-          mkdir -p /opt/theos/sdks
-          cd /opt/theos/sdks
+          mkdir -p "$THEOS/sdks"
+          cd "$THEOS/sdks"
           
-          wget -L "https://github.com/theos/sdks/archive/refs/heads/master.tar.gz" -O sdks.tar.gz
-          tar -xzf sdks.tar.gz --strip-components=1
-          rm sdks.tar.gz
+          curl -LO https://github.com/theos/sdks/archive/refs/heads/master.zip
+          unzip -q master.zip
+          mv sdks-master/*.sdk ./
+          rm -rf master.zip sdks-master
           
-          # Đổi tên SDK khớp với Makefile
+          # Đổi tên khớp Makefile
           mv -f iPhoneOS15.6.sdk iPhoneOS15.0.sdk
           
           ls -la
-          echo "✅ Sẵn sàng biên dịch"
+          echo "✅ SDK sẵn sàng"
 
-      - name: Sửa lỗi gói
+      - name: Sửa lỗi nén gói
         run: |
-          sed -i 's/lzma/gzip/g' /opt/theos/makefiles/package/deb.mk
-          sudo apt-get install -y libio-compress-lzma-perl
+          sed -i 's/lzma/gzip/g' "$THEOS/makefiles/package/deb.mk"
 
       - name: Biên dịch
         run: |
-          export THEOS=/opt/theos
+          export THEOS="$GITHUB_WORKSPACE/theos"
           make clean
           make
 
@@ -56,3 +62,4 @@ jobs:
         with:
           name: FullBypass.dylib
           path: .theos/obj/arm64/FullBypass.dylib
+          retention-days: 7
