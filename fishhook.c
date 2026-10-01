@@ -1,9 +1,4 @@
-// fishhook - https://github.com/facebook/fishhook
-// Copyright (c) Facebook, Inc. and its affiliates.
-// Released under MIT License
-
 #include "fishhook.h"
-
 #include <dlfcn.h>
 #include <stdbool.h>
 #include <string.h>
@@ -109,9 +104,8 @@ static bool rebind_symbols_for_image(const mach_header_t *header,
                     (la_symbol_ptr ? la_symbol_ptr->addr : nl_symbol_ptr->addr) +
                     i * sizeof(uintptr_t));
                 if (*fn_ptr != (uintptr_t)rebindings[j].replacement) {
-                    if (rebindings[j].replaced) {
+                    if (rebindings[j].replaced)
                         *rebindings[j].replaced = (void *)*fn_ptr;
-                    }
                     *fn_ptr = (uintptr_t)rebindings[j].replacement;
                     did_rebind = true;
                 }
@@ -121,15 +115,13 @@ static bool rebind_symbols_for_image(const mach_header_t *header,
     return did_rebind;
 }
 
-int rebind_symbols(struct rebinding rebindings[], size_t rebindings_nel) {
-    int retval = 0;
-    uint32_t image_count = _dyld_image_count();
-    for (uint32_t i = 0; i < image_count; i++) {
-        const mach_header_t *header = (const mach_header_t *)_dyld_get_image_header(i);
-        intptr_t slide = _dyld_get_image_vmaddr_slide(i);
-        if (rebind_symbols_for_image(header, slide, rebindings, rebindings_nel)) {
-            retval = 1;
-        }
+int rebind_symbols(struct rebinding rebindings[], size_t n) {
+    int r = 0;
+    uint32_t c = _dyld_image_count();
+    for (uint32_t i = 0; i < c; i++) {
+        const mach_header_t *h = (const mach_header_t *)_dyld_get_image_header(i);
+        if (rebind_symbols_for_image(h, _dyld_get_image_vmaddr_slide(i), rebindings, n))
+            r = 1;
     }
-    return retval;
+    return r;
 }
