@@ -1,4 +1,4 @@
-name: Build dylib
+name: Build .dylib with Theos
 
 on:
   push:
@@ -7,33 +7,38 @@ on:
 
 jobs:
   build:
-    name: Build .dylib
-    runs-on: macos-latest  # ✅ Bắt buộc macOS cho .dylib
+    name: Build with Theos
+    runs-on: macos-latest
 
     steps:
       - name: Tải mã nguồn
         uses: actions/checkout@v4
 
-      - name: Kiểm tra file
+      # Cài Theos
+      - name: Cài Theos
         run: |
-          echo "=== File trong thư mục ==="
+          git clone --recursive https://github.com/theos/theos.git $HOME/theos
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+
+      # Kiểm tra file
+      - name: Kiểm tra
+        run: |
           ls -la
-          echo "=== Có Makefile không? ==="
-          test -f Makefile && echo "✅ Có Makefile" || echo "❌ Không thấy Makefile"
+          echo "THEOS=$THEOS"
 
-      - name: Build với Makefile
+      # Build
+      - name: Build
         run: |
-          make clean 2>/dev/null || true
-          make
-          echo "=== Kết quả sau build ==="
-          ls -lh *.dylib 2>/dev/null || ls -lh
+          export THEOS=$HOME/theos
+          make clean
+          make THEOS=$THEOS
 
+      # Tải kết quả
       - name: Upload .dylib
         uses: actions/upload-artifact@v4
         with:
           name: libmodmenu.dylib
           path: |
-            *.dylib
-            !Makefile
-            !README.md
+            ./*.dylib
+            ./obj/*.dylib
           retention-days: 14
