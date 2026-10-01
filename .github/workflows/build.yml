@@ -1,65 +1,31 @@
-name: Build FullBypass
+name: Build Mod
 
-on:
-  push:
-    branches: [main, master]
-  workflow_dispatch:
+on: push
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Lấy mã nguồn
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Setup NDK
+        uses: nttld/setup-ndk@v1
         with:
-          submodules: true
+          ndk-version: r26d
 
-      - name: Cài phụ thuộc hệ thống
+      - name: Build
         run: |
-          sudo apt-get update && sudo apt-get install -y \
-            build-essential git perl libssl-dev curl wget zip unzip xz-utils libtinfo6 \
-            libio-compress-lzma-perl
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24
+          cmake --build .
 
-      - name: Cài Theos
-        run: |
-          git clone --depth=1 --recursive https://github.com/theos/theos.git "$GITHUB_WORKSPACE/theos"
-          echo "THEOS=$GITHUB_WORKSPACE/theos" >> $GITHUB_ENV
-
-      - name: Cài Toolchain biên dịch
-        run: |
-          cd "$THEOS"
-          mkdir -p toolchain
-          curl -sL https://github.com/L1ghtmann/llvm-project/releases/latest/download/iOSToolchain-x86_64.tar.xz | tar -xJvf - -C toolchain/
-
-      - name: Tải SDK & đặt đúng tên
-        run: |
-          mkdir -p "$THEOS/sdks"
-          cd "$THEOS/sdks"
-          
-          curl -LO https://github.com/theos/sdks/archive/refs/heads/master.zip
-          unzip -q master.zip
-          mv sdks-master/*.sdk ./
-          rm -rf master.zip sdks-master
-          
-          # Đổi tên khớp Makefile
-          mv -f iPhoneOS15.6.sdk iPhoneOS15.0.sdk
-          
-          ls -la
-          echo "✅ SDK sẵn sàng"
-
-      - name: Sửa lỗi nén gói
-        run: |
-          sed -i 's/lzma/gzip/g' "$THEOS/makefiles/package/deb.mk"
-
-      - name: Biên dịch
-        run: |
-          export THEOS="$GITHUB_WORKSPACE/theos"
-          make clean
-          make
-
-      - name: Tải file .dylib
+      - name: Upload .so / .dylib
         uses: actions/upload-artifact@v4
         with:
-          name: FullBypass.dylib
-          path: .theos/obj/arm64/FullBypass.dylib
+          name: ModLibrary
+          path: |
+            build/**/*.so
+            build/**/*.dylib
           retention-days: 7
