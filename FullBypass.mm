@@ -1,74 +1,81 @@
-// ==================================================
-// BYPASS BÁO CÁO / BẢO MẬT — DÙNG API CHUẨN SUBSTRATE
-// ==================================================
 #import <Foundation/Foundation.h>
 #import <substrate.h>
+#import <mach-o/dyld.h>
+#import <stdint.h>
 
-// === KHAI BÁO KIỂU ===
-typedef int (*Fn_General)(void*);
+// ==============================================
+// Khai báo hàm gốc
+// ==============================================
+static void (*orig_Report_s)(void*);
+static void (*orig_ReportToTdm_s)(void*);
+static void (*orig_ReportEventByName)(void*);
+static void (*orig_ReportEvent)(void*);
+static void (*orig_SecurityCheckReq)(void*);
+static void (*orig_Event_CommonReport)(void*);
+static void (*orig_EventPhotoReport)(void*);
 
-// === CON TRỎ HÀM GỐC ===
-static Fn_General orig_Report_s = NULL;
-static Fn_General orig_ReportToTdm_s = NULL;
-static Fn_General orig_ReportEventByName = NULL;
-static Fn_General orig_ReportEvent = NULL;
-static Fn_General orig_SecurityCheckReq = NULL;
-static Fn_General orig_Event_CommonReport = NULL;
-static Fn_General orig_EventPhotoReport = NULL;
-static Fn_General orig_IsDebug_s = NULL;
-static Fn_General orig_IsRootChanged = NULL;
-static Fn_General orig_RefreshPunishTime = NULL;
-static Fn_General orig_OnReportConfirm = NULL;
-static Fn_General orig_On_InBattleMsg_ReportConfirm = NULL;
-static Fn_General orig_reportInfo = NULL;
-static Fn_General orig_handleReportInfoResult = NULL;
+static int (*orig_IsDebug_s)(void*);
+static int (*orig_IsRootChanged)(void*);
 
-// === HÀM THAY THẾ — TRẢ VỀ THÀNH CÔNG ===
-static int hook_NoOp(void* ctx) { return 0; }
+static void (*orig_RefreshPunishTime)(void*);
+static void (*orig_OnReportConfirm)(void*);
+static void (*orig_On_InBattleMsg_ReportConfirm)(void*);
+static void (*orig_reportInfo)(void*);
+static void (*orig_handleReportInfoResult)(void*);
 
-// === HÀM HỖ TRỢ: TÌM & HOOK 1 HÀM ===
-static void HookIfFound(const char* symbolName, void* hookFn, void** origPtr) {
-    @autoreleasepool {
-        MSImageRef image = MSGetImageByName(NULL); // Tìm trong ảnh chính của app
-        if (!image) image = MSGetImageByName("/usr/libexec/backboardd"); // Phụ nếu cần
-        if (!image) return;
-        
-        void* symAddr = MSFindSymbol(image, symbolName);
-        if (symAddr) {
-            MSHookFunction(symAddr, hookFn, origPtr);
-            NSLog(@"[AntiBypass] ✅ Hook: %s", symbolName);
-        } else {
-            NSLog(@"[AntiBypass] ⚠️ Không tìm thấy: %s", symbolName);
-        }
-    }
+// ==============================================
+// Hàm trống — chặn tất cả = trả về ngay
+// ==============================================
+static void hook_NoOp(void* arg) {
+    // Bỏ qua, không gọi hàm gốc
 }
 
-// === KHỞI TẠO ===
+static int hook_NoOp_Return0(void* arg) {
+    // Trả về 0 = không phát hiện, không phải debug
+    return 0;
+}
+
+// ==============================================
+// Hàm Hook thông minh
+// ==============================================
+static void HookIfFound(const char* symbolName, void* hookFn, void** origPtr) {
+    void* sym = MSFindSymbol(NULL, symbolName);
+    if (!sym) {
+        NSLog(@"[Bypass] ⚠️ Không tìm thấy: %s", symbolName);
+        return;
+    }
+    MSHookFunction(sym, hookFn, origPtr);
+    NSLog(@"[Bypass] ✅ Đã hook: %s", symbolName);
+}
+
+// ==============================================
+// Bắt đầu khi nạp .dylib
+// ==============================================
 __attribute__((constructor))
-static void AntiBypassInit(void) {
+static void ModuleInit(void) {
     @autoreleasepool {
-        NSLog(@"[AntiBypass] ✅ Đang khởi tạo...");
+        NSLog(@"[Bypass] 🚀 Đang khởi động Bypass Anti-Cheat...");
 
-        // Báo cáo
-        HookIfFound("_Report_s", hook_NoOp, (void**)&orig_Report_s);
-        HookIfFound("_ReportToTdm_s", hook_NoOp, (void**)&orig_ReportToTdm_s);
-        HookIfFound("_ReportEventByName", hook_NoOp, (void**)&orig_ReportEventByName);
-        HookIfFound("_ReportEvent", hook_NoOp, (void**)&orig_ReportEvent);
-        HookIfFound("_SecurityCheckReq", hook_NoOp, (void**)&orig_SecurityCheckReq);
-        HookIfFound("_Event_CommonReport", hook_NoOp, (void**)&orig_Event_CommonReport);
-        HookIfFound("_EventPhotoReport", hook_NoOp, (void**)&orig_EventPhotoReport);
+        // === Chặn báo cáo an ninh ===
+        HookIfFound("_Report_s",                  (void*)hook_NoOp,          (void**)&orig_Report_s);
+        HookIfFound("_ReportToTdm_s",             (void*)hook_NoOp,          (void**)&orig_ReportToTdm_s);
+        HookIfFound("_ReportEventByName",         (void*)hook_NoOp,          (void**)&orig_ReportEventByName);
+        HookIfFound("_ReportEvent",               (void*)hook_NoOp,          (void**)&orig_ReportEvent);
+        HookIfFound("_SecurityCheckReq",          (void*)hook_NoOp,          (void**)&orig_SecurityCheckReq);
+        HookIfFound("_Event_CommonReport",        (void*)hook_NoOp,          (void**)&orig_Event_CommonReport);
+        HookIfFound("_EventPhotoReport",          (void*)hook_NoOp,          (void**)&orig_EventPhotoReport);
 
-        // Kiểm tra bảo mật
-        HookIfFound("_IsDebug_s", hook_NoOp, (void**)&orig_IsDebug_s);
-        HookIfFound("_IsRootChanged", hook_NoOp, (void**)&orig_IsRootChanged);
+        // === Nói dối: không debug, không root/jailbreak ===
+        HookIfFound("_IsDebug_s",                 (void*)hook_NoOp_Return0,  (void**)&orig_IsDebug_s);
+        HookIfFound("_IsRootChanged",             (void*)hook_NoOp_Return0,  (void**)&orig_IsRootChanged);
 
-        // Xử lý phạt / thông báo
-        HookIfFound("_RefreshPunishTime", hook_NoOp, (void**)&orig_RefreshPunishTime);
-        HookIfFound("_OnReportConfirm", hook_NoOp, (void**)&orig_OnReportConfirm);
-        HookIfFound("_On_InBattleMsg_ReportConfirm", hook_NoOp, (void**)&orig_On_InBattleMsg_ReportConfirm);
-        HookIfFound("_reportInfo", hook_NoOp, (void**)&orig_reportInfo);
-        HookIfFound("_handleReportInfoResult", hook_NoOp, (void**)&orig_handleReportInfoResult);
+        // === Chặn chức năng phạt/xác nhận báo cáo ===
+        HookIfFound("_RefreshPunishTime",         (void*)hook_NoOp,          (void**)&orig_RefreshPunishTime);
+        HookIfFound("_OnReportConfirm",           (void*)hook_NoOp,          (void**)&orig_OnReportConfirm);
+        HookIfFound("_On_InBattleMsg_ReportConfirm", (void*)hook_NoOp,       (void**)&orig_On_InBattleMsg_ReportConfirm);
+        HookIfFound("_reportInfo",                (void*)hook_NoOp,          (void**)&orig_reportInfo);
+        HookIfFound("_handleReportInfoResult",    (void*)hook_NoOp,          (void**)&orig_handleReportInfoResult);
 
-        NSLog(@"[AntiBypass] ✅ Hoàn tất!");
+        NSLog(@"[Bypass] ✅ Tất cả đã sẵn sàng!");
     }
 }
