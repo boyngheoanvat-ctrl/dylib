@@ -7,15 +7,38 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container: ghcr.io/itsnep/theos:latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
+      - name: Cài công cụ hệ thống
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git curl libxml2-dev libplist-dev
+
+      - name: Cài Theos
+        run: |
+          git clone --depth 1 --branch master https://github.com/theos/theos.git /opt/theos
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
+
+      - name: Tải & cài iOS SDK
+        run: |
+          mkdir -p /opt/theos/sdks
+          cd /opt/theos/sdks
+          curl -L -o sdk.tar.xz "https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz"
+          tar -xf sdk.tar.xz
+          rm sdk.tar.xz
+          ls -la
+
+      - name: Sửa lỗi gói
+        run: |
+          sed -i 's/lzma/gzip/g' /opt/theos/makefiles/package/deb.mk
+          sudo apt-get install -y libio-compress-lzma-perl
+
       - name: Biên dịch
         run: |
-          export THEOS=/theos
+          export THEOS=/opt/theos
           make clean
           make
 
