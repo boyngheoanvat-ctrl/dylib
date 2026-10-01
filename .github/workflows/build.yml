@@ -1,5 +1,4 @@
-name: Build .dylib with Theos
-
+name: Build dylib — Theos
 on:
   push:
     branches: [main, master]
@@ -7,37 +6,24 @@ on:
 
 jobs:
   build:
-    name: Build with Theos
     runs-on: macos-latest
-
     steps:
-      - name: Tải mã nguồn
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Cài Theos
       - name: Cài Theos
         run: |
-          git clone --recursive https://github.com/theos/theos.git $HOME/theos
+          git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
-      # Kiểm tra file
-      - name: Kiểm tra
-        run: |
-          ls -la
-          echo "THEOS=$THEOS"
-
-      # Build
       - name: Build
         run: |
-          export THEOS=$HOME/theos
           make clean
-          make THEOS=$THEOS
+          make
 
-      # Tải kết quả
-      - name: Upload .dylib
+      - name: Tải libmodmenu.dylib
         uses: actions/upload-artifact@v4
         with:
-          name: libmodmenu.dylib
+          name: libmodmenu
           path: |
             ./*.dylib
             ./obj/*.dylib
