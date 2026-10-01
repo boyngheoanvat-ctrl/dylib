@@ -1,73 +1,74 @@
 // ==================================================
-// BYPASS BÁO CÁO / BẢO MẬT — DÙNG KÝ HIỆU ĐỘNG
+// BYPASS BÁO CÁO / BẢO MẬT — DÙNG API CHUẨN SUBSTRATE
 // ==================================================
 #import <Foundation/Foundation.h>
 #import <substrate.h>
-#import <substrate/dynamic.h>
 
-// === KHAI BÁO KIỂU HÀM ===
-typedef int (*Fn_void)(void*);
-typedef int (*Fn_Report)(void*);
+// === KHAI BÁO KIỂU ===
+typedef int (*Fn_General)(void*);
 
 // === CON TRỎ HÀM GỐC ===
-static Fn_void orig_Report_s = NULL;
-static Fn_void orig_ReportToTdm_s = NULL;
-static Fn_void orig_ReportEventByName = NULL;
-static Fn_void orig_ReportEvent = NULL;
-static Fn_void orig_SecurityCheckReq = NULL;
-static Fn_void orig_Event_CommonReport = NULL;
-static Fn_void orig_EventPhotoReport = NULL;
-static Fn_void orig_IsDebug_s = NULL;
-static Fn_void orig_IsRootChanged = NULL;
-static Fn_void orig_RefreshPunishTime = NULL;
-static Fn_void orig_OnReportConfirm = NULL;
-static Fn_void orig_On_InBattleMsg_ReportConfirm = NULL;
-static Fn_void orig_reportInfo = NULL;
-static Fn_void orig_handleReportInfoResult = NULL;
+static Fn_General orig_Report_s = NULL;
+static Fn_General orig_ReportToTdm_s = NULL;
+static Fn_General orig_ReportEventByName = NULL;
+static Fn_General orig_ReportEvent = NULL;
+static Fn_General orig_SecurityCheckReq = NULL;
+static Fn_General orig_Event_CommonReport = NULL;
+static Fn_General orig_EventPhotoReport = NULL;
+static Fn_General orig_IsDebug_s = NULL;
+static Fn_General orig_IsRootChanged = NULL;
+static Fn_General orig_RefreshPunishTime = NULL;
+static Fn_General orig_OnReportConfirm = NULL;
+static Fn_General orig_On_InBattleMsg_ReportConfirm = NULL;
+static Fn_General orig_reportInfo = NULL;
+static Fn_General orig_handleReportInfoResult = NULL;
 
-// === HÀM GHI ĐÈ — TRẢ VỀ KHÔNG GÌ ===
+// === HÀM THAY THẾ — TRẢ VỀ THÀNH CÔNG ===
 static int hook_NoOp(void* ctx) { return 0; }
 
-// === KHỞI TẠO ĐỘNG ===
+// === HÀM HỖ TRỢ: TÌM & HOOK 1 HÀM ===
+static void HookIfFound(const char* symbolName, void* hookFn, void** origPtr) {
+    @autoreleasepool {
+        MSImageRef image = MSGetImageByName(NULL); // Tìm trong ảnh chính của app
+        if (!image) image = MSGetImageByName("/usr/libexec/backboardd"); // Phụ nếu cần
+        if (!image) return;
+        
+        void* symAddr = MSFindSymbol(image, symbolName);
+        if (symAddr) {
+            MSHookFunction(symAddr, hookFn, origPtr);
+            NSLog(@"[AntiBypass] ✅ Hook: %s", symbolName);
+        } else {
+            NSLog(@"[AntiBypass] ⚠️ Không tìm thấy: %s", symbolName);
+        }
+    }
+}
+
+// === KHỞI TẠO ===
 __attribute__((constructor))
 static void AntiBypassInit(void) {
     @autoreleasepool {
-        NSLog(@"[AntiBypass] ✅ Đang tải ký hiệu động...");
+        NSLog(@"[AntiBypass] ✅ Đang khởi tạo...");
 
-        // === Nhóm: Báo cáo ===
-        MSDynamicHookSymbol("_Report_s",
-            (void*)hook_NoOp, (void**)&orig_Report_s);
-        MSDynamicHookSymbol("_ReportToTdm_s",
-            (void*)hook_NoOp, (void**)&orig_ReportToTdm_s);
-        MSDynamicHookSymbol("_ReportEventByName",
-            (void*)hook_NoOp, (void**)&orig_ReportEventByName);
-        MSDynamicHookSymbol("_ReportEvent",
-            (void*)hook_NoOp, (void**)&orig_ReportEvent);
-        MSDynamicHookSymbol("_SecurityCheckReq",
-            (void*)hook_NoOp, (void**)&orig_SecurityCheckReq);
-        MSDynamicHookSymbol("_Event_CommonReport",
-            (void*)hook_NoOp, (void**)&orig_Event_CommonReport);
-        MSDynamicHookSymbol("_EventPhotoReport",
-            (void*)hook_NoOp, (void**)&orig_EventPhotoReport);
+        // Báo cáo
+        HookIfFound("_Report_s", hook_NoOp, (void**)&orig_Report_s);
+        HookIfFound("_ReportToTdm_s", hook_NoOp, (void**)&orig_ReportToTdm_s);
+        HookIfFound("_ReportEventByName", hook_NoOp, (void**)&orig_ReportEventByName);
+        HookIfFound("_ReportEvent", hook_NoOp, (void**)&orig_ReportEvent);
+        HookIfFound("_SecurityCheckReq", hook_NoOp, (void**)&orig_SecurityCheckReq);
+        HookIfFound("_Event_CommonReport", hook_NoOp, (void**)&orig_Event_CommonReport);
+        HookIfFound("_EventPhotoReport", hook_NoOp, (void**)&orig_EventPhotoReport);
 
-        // === Nhóm: Kiểm tra bảo mật ===
-        MSDynamicHookSymbol("_IsDebug_s",
-            (void*)hook_NoOp, (void**)&orig_IsDebug_s);
-        MSDynamicHookSymbol("_IsRootChanged",
-            (void*)hook_NoOp, (void**)&orig_IsRootChanged);
+        // Kiểm tra bảo mật
+        HookIfFound("_IsDebug_s", hook_NoOp, (void**)&orig_IsDebug_s);
+        HookIfFound("_IsRootChanged", hook_NoOp, (void**)&orig_IsRootChanged);
 
-        // === Nhóm: Xử lý phạt / thông báo ===
-        MSDynamicHookSymbol("_RefreshPunishTime",
-            (void*)hook_NoOp, (void**)&orig_RefreshPunishTime);
-        MSDynamicHookSymbol("_OnReportConfirm",
-            (void*)hook_NoOp, (void**)&orig_OnReportConfirm);
-        MSDynamicHookSymbol("_On_InBattleMsg_ReportConfirm",
-            (void*)hook_NoOp, (void**)&orig_On_InBattleMsg_ReportConfirm);
-        MSDynamicHookSymbol("_reportInfo",
-            (void*)hook_NoOp, (void**)&orig_reportInfo);
-        MSDynamicHookSymbol("_handleReportInfoResult",
-            (void*)hook_NoOp, (void**)&orig_handleReportInfoResult);
+        // Xử lý phạt / thông báo
+        HookIfFound("_RefreshPunishTime", hook_NoOp, (void**)&orig_RefreshPunishTime);
+        HookIfFound("_OnReportConfirm", hook_NoOp, (void**)&orig_OnReportConfirm);
+        HookIfFound("_On_InBattleMsg_ReportConfirm", hook_NoOp, (void**)&orig_On_InBattleMsg_ReportConfirm);
+        HookIfFound("_reportInfo", hook_NoOp, (void**)&orig_reportInfo);
+        HookIfFound("_handleReportInfoResult", hook_NoOp, (void**)&orig_handleReportInfoResult);
 
-        NSLog(@"[AntiBypass] ✅ HOÀN TẤT — Tất cả hàm đã được bỏ qua!");
+        NSLog(@"[AntiBypass] ✅ Hoàn tất!");
     }
 }
