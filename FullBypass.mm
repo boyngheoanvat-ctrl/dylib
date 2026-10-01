@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
-#import <substrate.h>
 #import <mach-o/dyld.h>
 #import <stdint.h>
+#import <fishhook/fishhook.h>
 
 // ==============================================
 // Khai báo hàm gốc
@@ -24,58 +24,49 @@ static void (*orig_reportInfo)(void*);
 static void (*orig_handleReportInfoResult)(void*);
 
 // ==============================================
-// Hàm trống — chặn tất cả = trả về ngay
+// Hàm chặn — trả về luôn, không làm gì
 // ==============================================
-static void hook_NoOp(void* arg) {
-    // Bỏ qua, không gọi hàm gốc
+static void NoOp_void(void* arg) {
+    // Bỏ qua hoàn toàn
 }
 
-static int hook_NoOp_Return0(void* arg) {
-    // Trả về 0 = không phát hiện, không phải debug
-    return 0;
-}
-
-// ==============================================
-// Hàm Hook thông minh
-// ==============================================
-static void HookIfFound(const char* symbolName, void* hookFn, void** origPtr) {
-    void* sym = MSFindSymbol(NULL, symbolName);
-    if (!sym) {
-        NSLog(@"[Bypass] ⚠️ Không tìm thấy: %s", symbolName);
-        return;
-    }
-    MSHookFunction(sym, hookFn, origPtr);
-    NSLog(@"[Bypass] ✅ Đã hook: %s", symbolName);
+static int NoOp_zero(void* arg) {
+    return 0; // Nói không phát hiện gì
 }
 
 // ==============================================
-// Bắt đầu khi nạp .dylib
+// Bắt đầu khi nạp dylib
 // ==============================================
 __attribute__((constructor))
-static void ModuleInit(void) {
+static void DylibMain(void) {
     @autoreleasepool {
-        NSLog(@"[Bypass] 🚀 Đang khởi động Bypass Anti-Cheat...");
+        NSLog(@"[Bypass] 🚀 Đang khởi động...");
 
-        // === Chặn báo cáo an ninh ===
-        HookIfFound("_Report_s",                  (void*)hook_NoOp,          (void**)&orig_Report_s);
-        HookIfFound("_ReportToTdm_s",             (void*)hook_NoOp,          (void**)&orig_ReportToTdm_s);
-        HookIfFound("_ReportEventByName",         (void*)hook_NoOp,          (void**)&orig_ReportEventByName);
-        HookIfFound("_ReportEvent",               (void*)hook_NoOp,          (void**)&orig_ReportEvent);
-        HookIfFound("_SecurityCheckReq",          (void*)hook_NoOp,          (void**)&orig_SecurityCheckReq);
-        HookIfFound("_Event_CommonReport",        (void*)hook_NoOp,          (void**)&orig_Event_CommonReport);
-        HookIfFound("_EventPhotoReport",          (void*)hook_NoOp,          (void**)&orig_EventPhotoReport);
+        // Mảng hook — dùng fishhook, KHÔNG cần Substrate
+        struct rebinding binds[] = {
+            {"_Report_s",                   NoOp_void,        (void**)&orig_Report_s},
+            {"_ReportToTdm_s",              NoOp_void,        (void**)&orig_ReportToTdm_s},
+            {"_ReportEventByName",          NoOp_void,        (void**)&orig_ReportEventByName},
+            {"_ReportEvent",                NoOp_void,        (void**)&orig_ReportEvent},
+            {"_SecurityCheckReq",           NoOp_void,        (void**)&orig_SecurityCheckReq},
+            {"_Event_CommonReport",         NoOp_void,        (void**)&orig_Event_CommonReport},
+            {"_EventPhotoReport",           NoOp_void,        (void**)&orig_EventPhotoReport},
+            
+            {"_IsDebug_s",                  NoOp_zero,        (void**)&orig_IsDebug_s},
+            {"_IsRootChanged",              NoOp_zero,        (void**)&orig_IsRootChanged},
+            
+            {"_RefreshPunishTime",          NoOp_void,        (void**)&orig_RefreshPunishTime},
+            {"_OnReportConfirm",            NoOp_void,        (void**)&orig_OnReportConfirm},
+            {"_On_InBattleMsg_ReportConfirm", NoOp_void,      (void**)&orig_On_InBattleMsg_ReportConfirm},
+            {"_reportInfo",                 NoOp_void,        (void**)&orig_reportInfo},
+            {"_handleReportInfoResult",     NoOp_void,        (void**)&orig_handleReportInfoResult},
+        };
 
-        // === Nói dối: không debug, không root/jailbreak ===
-        HookIfFound("_IsDebug_s",                 (void*)hook_NoOp_Return0,  (void**)&orig_IsDebug_s);
-        HookIfFound("_IsRootChanged",             (void*)hook_NoOp_Return0,  (void**)&orig_IsRootChanged);
-
-        // === Chặn chức năng phạt/xác nhận báo cáo ===
-        HookIfFound("_RefreshPunishTime",         (void*)hook_NoOp,          (void**)&orig_RefreshPunishTime);
-        HookIfFound("_OnReportConfirm",           (void*)hook_NoOp,          (void**)&orig_OnReportConfirm);
-        HookIfFound("_On_InBattleMsg_ReportConfirm", (void*)hook_NoOp,       (void**)&orig_On_InBattleMsg_ReportConfirm);
-        HookIfFound("_reportInfo",                (void*)hook_NoOp,          (void**)&orig_reportInfo);
-        HookIfFound("_handleReportInfoResult",    (void*)hook_NoOp,          (void**)&orig_handleReportInfoResult);
-
-        NSLog(@"[Bypass] ✅ Tất cả đã sẵn sàng!");
+        int count = sizeof(binds) / sizeof(binds[0]);
+        
+        // Thực hiện hook tất cả
+        rebind_symbols(binds, count);
+        
+        NSLog(@"[Bypass] ✅ Đã xử lý %d hàm — SẴN SÀNG!", count);
     }
 }
