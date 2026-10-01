@@ -14,6 +14,9 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          # Bỏ thông báo chậm
+          mkdir -p $HOME/.config/theos
+          echo 'THEOS_IGNORE_PARALLEL_BUILDING_NOTICE = yes' >> $HOME/.config/theos/rc.mk
 
       - name: Build
         run: |
