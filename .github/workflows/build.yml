@@ -12,20 +12,27 @@ jobs:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cài Theos + Tải SDK tự động
+      - name: Cài Theos + SDK chính xác
         run: |
+          # Clone Theos
           git clone --depth=1 https://github.com/theos/theos.git /opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
           
-          # Tải iOS SDK cần thiết
-          cd /opt/theos
-          curl -L https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz | tar xJ
+          # Vào thư mục sdks & tải đúng định dạng
+          cd /opt/theos/sdks
+          wget -q https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz
+          ls -la
+          
+          # Giải nén
+          tar -xf iPhoneOS15.0.sdk.tar.xz
+          rm iPhoneOS15.0.sdk.tar.xz
+          ls -la
 
-      - name: Sửa lỗi gói + cài công cụ
+      - name: Sửa lỗi gói & cài công cụ
         run: |
           sed -i 's/lzma/gzip/g' /opt/theos/makefiles/package/deb.mk
           sudo apt-get update
-          sudo apt-get install -y libio-compress-lzma-perl build-essential git
+          sudo apt-get install -y libio-compress-lzma-perl build-essential git wget
 
       - name: Biên dịch
         run: |
