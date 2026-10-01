@@ -12,27 +12,26 @@ jobs:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cài Theos
+      - name: Cài Theos + Tải SDK tự động
         run: |
           git clone --depth=1 https://github.com/theos/theos.git /opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
+          
+          # Tải iOS SDK cần thiết
+          cd /opt/theos
+          curl -L https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz | tar xJ
 
-      - name: Sửa lỗi dm.pl + nén
+      - name: Sửa lỗi gói + cài công cụ
         run: |
-          # Sửa deb.mk dùng gzip thay vì lzma
-          sed -i 's/_THEOS_PLATFORM_DPKG_DEB_COMPRESSION ?= lzma/_THEOS_PLATFORM_DPKG_DEB_COMPRESSION ?= gzip/' /opt/theos/makefiles/package/deb.mk
-          # Cài module Perl cần thiết
-          sudo apt-get update && sudo apt-get install -y libio-compress-lzma-perl
+          sed -i 's/lzma/gzip/g' /opt/theos/makefiles/package/deb.mk
+          sudo apt-get update
+          sudo apt-get install -y libio-compress-lzma-perl build-essential git
 
-      - name: Cài công cụ biên dịch
-        run: |
-          sudo apt-get update && sudo apt-get install -y build-essential git bison flex libplist-dev libxml2-dev
-
-      - name: Biên dịch (chỉ build, không gói deb)
+      - name: Biên dịch
         run: |
           export THEOS=/opt/theos
           make clean
-          make # ← Chỉ tạo .dylib, bỏ qua package gây lỗi
+          make
 
       - name: Tải file .dylib
         uses: actions/upload-artifact@v4
