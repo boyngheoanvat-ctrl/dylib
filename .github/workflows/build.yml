@@ -12,7 +12,7 @@ jobs:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cài công cụ hệ thống
+      - name: Cài công cụ
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git wget libxml2-dev libplist-dev
@@ -22,23 +22,23 @@ jobs:
           git clone --depth 1 https://github.com/theos/theos.git /opt/theos
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
 
-      - name: Tải SDK với link chính xác
+      - name: Tải SDK trực tiếp từ kho
         run: |
           mkdir -p /opt/theos/sdks
           cd /opt/theos/sdks
           
-          # Link từ Releases đã được xác nhận
-          wget -L "https://github.com/theos/sdks/releases/download/2024-06-14/iPhoneOS15.0.sdk.tar.xz" -O sdk.tar.xz
+          # Tải toàn kho sdks → lấy SDK ra
+          wget -L "https://github.com/theos/sdks/archive/refs/heads/master.tar.gz" -O sdks.tar.gz
           
-          # Kiểm tra kích thước
-          ls -lh sdk.tar.xz
+          # Kiểm tra
+          ls -lh sdks.tar.gz
           
-          # Giải nén
-          tar -xf sdk.tar.xz
-          rm sdk.tar.xz
+          # Giải nén chỉ lấy iPhoneOS15.0.sdk
+          tar -xzf sdks.tar.gz --strip-components=2 "sdks-master/iPhoneOS15.0.sdk"
+          rm sdks.tar.gz
           
           ls -la
-          echo "✅ SDK sẵn sàng"
+          echo "✅ SDK đã sẵn sàng"
 
       - name: Sửa lỗi gói
         run: |
