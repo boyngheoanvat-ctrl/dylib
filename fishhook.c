@@ -26,10 +26,6 @@ typedef struct nlist nlist_t;
 #define LC_SEGMENT_ARCH_DEPENDENT LC_SEGMENT
 #endif
 
-#ifndef SEGMENT_FLAGS_MASK
-#define SEGMENT_FLAGS_MASK ((1 << 24) - 1)
-#endif
-
 #ifndef INDIRECT_SYMBOL_ABS
 #define INDIRECT_SYMBOL_ABS 0x40000000
 #endif
@@ -87,11 +83,11 @@ static bool rebind_symbols_for_image(const mach_header_t *header,
     const uint32_t *indirect_syms = NULL;
     uint32_t num_indirect_syms = 0;
     if (la_symbol_ptr) {
-        indirect_syms = (const uint32_t *)((uintptr_t)header + slide + la_symbol_ptr->address);
+        indirect_syms = (const uint32_t *)((uintptr_t)header + slide + la_symbol_ptr->addr);
         num_indirect_syms = la_symbol_ptr->size / sizeof(uint32_t);
     }
     if (!indirect_syms && nl_symbol_ptr) {
-        indirect_syms = (const uint32_t *)((uintptr_t)header + slide + nl_symbol_ptr->address);
+        indirect_syms = (const uint32_t *)((uintptr_t)header + slide + nl_symbol_ptr->addr);
         num_indirect_syms = nl_symbol_ptr->size / sizeof(uint32_t);
     }
     if (!indirect_syms) return false;
@@ -110,7 +106,7 @@ static bool rebind_symbols_for_image(const mach_header_t *header,
         for (size_t j = 0; j < rebindings_nel; j++) {
             if (strcmp(sym_name, rebindings[j].name) == 0) {
                 uintptr_t *fn_ptr = (uintptr_t *)((uintptr_t)header + slide +
-                    (la_symbol_ptr ? la_symbol_ptr->address : nl_symbol_ptr->address) +
+                    (la_symbol_ptr ? la_symbol_ptr->addr : nl_symbol_ptr->addr) +
                     i * sizeof(uintptr_t));
                 if (*fn_ptr != (uintptr_t)rebindings[j].replacement) {
                     if (rebindings[j].replaced) {
