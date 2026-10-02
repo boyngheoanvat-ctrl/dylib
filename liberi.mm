@@ -1,121 +1,253 @@
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import <dlfcn.h>
-#import <sys/stat.h>
-#import <unistd.h>
-#import <errno.h>
 #import <mach-o/dyld.h>
 #import <mach-o/loader.h>
 #import <mach-o/nlist.h>
 #import <string.h>
 #import "fishhook.h"
 
-static int  retZero(void *)  { return 0; }
-static void retEmpty(void *) { }
+// ==============================================
+// HÀM TRẢ VỀ
+// ==============================================
+static int  retZero(void)           { return 0; }
+static int  retOne(void)            { return 1; }
+static void retEmpty(void)          { }
+static void setTrue(void)           { /* trả về true */ }
+static void setFalse(void)          { /* trả về false */ }
 
-static int (*orig_stat)(const char *, struct stat *) = NULL;
-static int (*orig_lstat)(const char *, struct stat *) = NULL;
-static int (*orig_access)(const char *, int) = NULL;
+// ==============================================
+// BIẾN ĐIỀU KHIỂN MENU
+// ==============================================
+static BOOL g_Enabled_Map        = NO;
+static BOOL g_Enabled_CamXa      = NO;
+static BOOL g_Enabled_Unti       = NO;
+static BOOL g_Enabled_LSD        = NO;
+static BOOL g_Enabled_HideRay    = NO;
 
-static int fakeFile(const char *p, struct stat *s, int isLstat) {
-    int r = isLstat ? orig_lstat(p, s) : orig_stat(p, s);
-    if (r == 0) {
-        s->st_mtime = 1720000000;
-        s->st_ctime = 1720000000;
-    }
-    return r;
+// ==============================================
+// MENU OVERLAY
+// ==============================================
+@interface LiberiMenu : UIViewController
+@property (nonatomic, strong) UIStackView *stack;
+@end
+
+@implementation LiberiMenu
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.9];
+    self.view.layer.cornerRadius = 12;
+    self.view.frame = CGRectMake(10, 100, 260, 340);
+    
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 240, 30)];
+    title.text = @"🔥 Liberi Control";
+    title.textColor = [UIColor whiteColor];
+    title.font = [UIFont boldSystemFontOfSize:18];
+    title.textAlignment = NSTextAlignmentCenter;
+    [self.view addSubview:title];
+    
+    self.stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 50, 240, 280)];
+    self.stack.axis = UILayoutConstraintAxisVertical;
+    self.stack.spacing = 12;
+    [self.view addSubview:self.stack];
+    
+    [self addSwitch:@"Map"           value:&g_Enabled_Map];
+    [self addSwitch:@"Cam Xa"        value:&g_Enabled_CamXa];
+    [self addSwitch:@"Show Unti"     value:&g_Enabled_Unti];
+    [self addSwitch:@"Show LSD"      value:&g_Enabled_LSD];
+    [self addSwitch:@"Ẩn Tia"        value:&g_Enabled_HideRay];
 }
-static int hk_stat(const char *p, struct stat *s)   { return fakeFile(p, s, 0); }
-static int hk_lstat(const char *p, struct stat *s)  { return fakeFile(p, s, 1); }
+
+- (void)addSwitch:(NSString*)title value:(BOOL*)value {
+    UIView *row = [[UIView alloc] init];
+    UILabel *lbl = [[UILabel alloc] init];
+    lbl.text = title;
+    lbl.textColor = [UIColor whiteColor];
+    lbl.font = [UIFont systemFontOfSize:15];
+    UISwitch *sw = [[UISwitch alloc] init];
+    sw.on = *value;
+    [sw addAction:[UIAction actionWithHandler:^(UIAction *act){
+        *value = ((UISwitch*)act.sender).isOn;
+    }] forControlEvents:UIControlEventValueChanged];
+    
+    [row addSubview:lbl];
+    [row addSubview:sw];
+    lbl.translatesAutoresizingMaskIntoConstraints = NO;
+    sw.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+        [lbl.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:0],
+        [lbl.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+        [sw.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:0],
+        [sw.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+        [row.heightAnchor constraintEqualToConstant:40]
+    ]];
+    [self.stack addArrangedSubview:row];
+}
+
+@end
+
+static LiberiMenu *g_menu = nil;
+
+static void ShowMenu(void) {
+    if (g_menu) return;
+    UIWindow *w = [UIApplication sharedApplication].keyWindow;
+    g_menu = [[LiberiMenu alloc] init];
+    g_menu.view.alpha = 0;
+    [w addSubview:g_menu.view];
+    [UIView animateWithDuration:0.3 animations:^{ g_menu.view.alpha = 1; }];
+}
+
+// ==============================================
+// PATCH BYTE TRỰC TIẾP VÀO BỘ NHỚ
+// ==============================================
+#include <sys/mman.h>
+
+static BOOL PatchRVA(const char *imageName, uintptr_t rva, const void *bytes, size_t len) {
+    uint32_t c = _dyld_image_count();
+    for (uint32_t i = 0; i < c; i++) {
+        const struct mach_header_64 *hdr = (const struct mach_header_64*)_dyld_get_image_header(i);
+        const char *name = _dyld_get_image_name(i);
+        if (!hdr || !name || strstr(name, imageName) == NULL) continue;
+        
+        uintptr_t base = (uintptr_t)hdr + _dyld_get_image_vmaddr_slide(i);
+        uintptr_t addr = base + rva;
+        
+        // Bảo vệ trang ghi được
+        uintptr_t page = addr & ~(PAGE_SIZE - 1);
+        size_t plen = (addr + len - page + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+        if (mprotect((void*)page, plen, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+            return NO;
+        
+        memcpy((void*)addr, bytes, len);
+        
+        // Khôi phục quyền thực thi
+        mprotect((void*)page, plen, PROT_READ | PROT_EXEC);
+        __builtin___clear_cache((void*)addr, (void*)(addr + len));
+        return YES;
+    }
+    return NO;
+}
+
+// ==============================================
+// DỮ LIỆU PATCH
+// ==============================================
+// Antiban — luôn áp dụng
+static const uint8_t PATCH_RET[]       = {0xC0, 0x03, 0x5F, 0xD6};      // ret
+static const uint8_t PATCH_DISABLE[]   = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6}; // movz #0; ret
+static const uint8_t PATCH_MAP[]       = {0x36, 0x00, 0x80, 0xD2};      // movz #0x1B, x0
+static const uint8_t PATCH_BOOL_RET[]  = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6}; // mov w0, #1; ret
+static const uint8_t PATCH_CAM1[]      = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+static const uint8_t PATCH_CAM2[]      = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
+
+struct AutoPatch {
+    const char *img;
+    uintptr_t rva;
+    const uint8_t *data;
+    size_t len;
+    BOOL *toggle; // NULL = luôn bật
+};
+
+static const struct AutoPatch g_patches[] = {
+    // === anort.framework — Fix Crack LUÔN BẬT ===
+    {"anort",   0x31C4C, PATCH_DISABLE, sizeof(PATCH_DISABLE), NULL},
+    {"anort",   0x4591C, PATCH_DISABLE, sizeof(PATCH_DISABLE), NULL},
+    
+    // === UnityFramework — Antiban LUÔN BẬT ===
+    {"UnityFramework", 0x706D890, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706D914, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706D9CC, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706DAB0, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706DD14, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706E0A0, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706E21C, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706E304, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706E6BC, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x706E754, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x677FA8C, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x0546B08, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x083B634, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x05B61A0, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x05B6380, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x05B65CC, PATCH_RET, sizeof(PATCH_RET), NULL},
+    {"UnityFramework", 0x05B6764, PATCH_RET, sizeof(PATCH_RET), NULL},
+    
+    // === Chức năng có Menu BẬT/TẮT ===
+    {"UnityFramework", 0x4A38100, PATCH_MAP,       sizeof(PATCH_MAP),       &g_Enabled_Map},
+    {"UnityFramework", 0x554B9EC, PATCH_CAM1,      sizeof(PATCH_CAM1),      &g_Enabled_CamXa},
+    {"UnityFramework", 0x541142C, PATCH_CAM2,      sizeof(PATCH_CAM2),      &g_Enabled_CamXa},
+    {"UnityFramework", 0x550E2BC, PATCH_CAM2,      sizeof(PATCH_CAM2),      &g_Enabled_CamXa},
+    {"UnityFramework", 0x5F1C394, PATCH_BOOL_RET,  sizeof(PATCH_BOOL_RET),  &g_Enabled_Unti},
+    {"UnityFramework", 0x6A6B798, PATCH_BOOL_RET,  sizeof(PATCH_BOOL_RET),  &g_Enabled_Unti},
+    {"UnityFramework", 0x6A6B8FC, PATCH_BOOL_RET,  sizeof(PATCH_BOOL_RET),  &g_Enabled_Unti},
+    {"UnityFramework", 0x5ADF5A8, PATCH_BOOL_RET,  sizeof(PATCH_BOOL_RET),  &g_Enabled_LSD},
+    {"UnityFramework", 0x5FBEC8C, PATCH_BOOL_RET,  sizeof(PATCH_BOOL_RET),  &g_Enabled_HideRay},
+    
+    {NULL, 0, NULL, 0, NULL} // Kết thúc
+};
+
+// ==============================================
+// QUÉT & ÁP DỤNG PATCH
+// ==============================================
+static void ApplyPatches(void) {
+    // Bước 1: Patch luôn bật
+    for (int i = 0; g_patches[i].img; i++) {
+        if (!g_patches[i].toggle) {
+            PatchRVA(g_patches[i].img, g_patches[i].rva,
+                     g_patches[i].data, g_patches[i].len);
+        }
+    }
+    // Bước 2: Theo dõi toggle — cập nhật khi thay đổi
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSTimer scheduledTimerWithTimeInterval:0.3 repeats:YES block:^(NSTimer *t){
+            for (int i = 0; g_patches[i].img; i++) {
+                if (!g_patches[i].toggle) continue;
+                if (*g_patches[i].toggle) {
+                    PatchRVA(g_patches[i].img, g_patches[i].rva,
+                             g_patches[i].data, g_patches[i].len);
+                }
+                // Tắt → không khôi phục gốc (cần lưu gốc nếu muốn hoàn nguyên)
+            }
+        }];
+    });
+}
+
+// ==============================================
+// ẨN DẤU VẾT HỆ THỐNG
+// ==============================================
+static int (*orig_access)(const char *, int) = NULL;
 static int hk_access(const char *p, int m) {
-    if (strstr(p, "liberi") || strstr(p, "Bypass") || strstr(p, "patch") ||
-        strstr(p, "hack") || strstr(p, "cheat") || strstr(p, "mod")) {
+    if (strstr(p, "liberi") || strstr(p, "anort") || strstr(p, "UnityFramework")) {
         errno = ENOENT;
         return -1;
     }
     return orig_access(p, m);
 }
 
-static void scanAndHook(void) {
-    struct rebinding hooks[128];
-    int count = 0;
-
-    const char *patterns[] = {
-        "IsDebug", "IsRoot", "CheckDebug", "CheckRoot",
-        "Report", "SecurityCheck", "Verify", "Integrity",
-        "CheckModified", "GetDeviceStatus", "AntiCheat",
-        "BanCheck", "Detect", "Tamper", "Signature",
-        "HashCheck", "FileCheck", "BuildCheck", "ClientCheck",
-        "Patch", "Modified", "Alter", "Unauth", "Spoof",
-        "DyldCheck", "LibCheck", "DylibCheck", "Inspect",
-        "EnvironmentCheck", "ProcCheck", "MemoryCheck",
-        "Telemetry", "StatReport", "UploadLog", "Audit",
-        "wukong", "CheckIPA", "SignatureCheck", "CertCheck",
-        NULL
-    };
-
-    uint32_t imgCount = _dyld_image_count();
-    for (uint32_t i = 0; i < imgCount; i++) {
-        const struct mach_header *hdr = _dyld_get_image_header(i);
-        if (!hdr) continue;
-        const char *imgName = _dyld_get_image_name(i);
-        if (!imgName || !strstr(imgName, ".app")) continue;
-
-        uintptr_t slide = _dyld_get_image_vmaddr_slide(i);
-        uintptr_t cur = (uintptr_t)hdr + sizeof(struct mach_header);
-        uint32_t ncmds = hdr->ncmds;
-
-        for (uint32_t j = 0; j < ncmds; j++) {
-            const struct load_command *cmd = (const struct load_command *)cur;
-            if (cmd->cmd == LC_SYMTAB) {
-                const struct symtab_command *st = (const struct symtab_command *)cmd;
-                const struct nlist_64 *nl = (const struct nlist_64 *)
-                    ((uintptr_t)hdr + slide + st->symoff);
-                const char *strtab = (const char *)
-                    ((uintptr_t)hdr + slide + st->stroff);
-
-                for (uint32_t k = 0; k < st->nsyms; k++) {
-                    if ((nl[k].n_type & N_TYPE) == N_UNDF && nl[k].n_value) {
-                        const char *sym = strtab + nl[k].n_un.n_strx;
-                        if (!sym || sym[0] != '_') continue;
-
-                        for (int p = 0; patterns[p]; p++) {
-                            if (strcasestr(sym, patterns[p])) {
-                                int retZeroFn = strstr(sym, "Is") || strstr(sym, "Check") ||
-                                              strstr(sym, "Verify") || strstr(sym, "Detect") ||
-                                              strstr(sym, "Has") || strstr(sym, "Get");
-                                hooks[count++] = (struct rebinding){
-                                    sym,
-                                    retZeroFn ? (void*)retZero : (void*)retEmpty,
-                                    NULL
-                                };
-                                if (count >= 120) goto scanDone;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            cur += cmd->cmdsize;
-        }
-    }
-scanDone:
-    if (count > 0) rebind_symbols(hooks, count);
-}
-
+// ==============================================
+// KHỞI ĐỘNG
+// ==============================================
 __attribute__((constructor(101)))
 static void AutoStart(void) {
     @autoreleasepool {
+        // Xóa dấu vết môi trường
         unsetenv("DYLD_INSERT_LIBRARIES");
         unsetenv("DYLD_LIBRARY_PATH");
         unsetenv("DYLD_FALLBACK_LIBRARY_PATH");
-
+        
+        // Ẩn file
         struct rebinding sysHooks[] = {
-            {"stat",   (void*)hk_stat,   (void**)&orig_stat},
-            {"lstat",  (void*)hk_lstat,  (void**)&orig_lstat},
             {"access", (void*)hk_access, (void**)&orig_access},
         };
-        rebind_symbols(sysHooks, sizeof(sysHooks)/sizeof(sysHooks[0]));
-
-        scanAndHook();
+        rebind_symbols(sysHooks, 1);
+        
+        // Đợi framework nạp xong rồi patch
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            ApplyPatches();
+            // Hiện menu sau 2s
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                ShowMenu();
+            });
+        });
     }
 }
