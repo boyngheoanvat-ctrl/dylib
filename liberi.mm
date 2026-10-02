@@ -9,15 +9,9 @@
 #import <string.h>
 #import "fishhook.h"
 
-// ==============================================
-// HÀM TRẢ VỀ
-// ==============================================
 static int  retZero(void *)  { return 0; }
 static void retEmpty(void *) { }
 
-// ==============================================
-// ẨN DẤU VẾT HỆ THỐNG
-// ==============================================
 static int (*orig_stat)(const char *, struct stat *) = NULL;
 static int (*orig_lstat)(const char *, struct stat *) = NULL;
 static int (*orig_access)(const char *, int) = NULL;
@@ -41,9 +35,6 @@ static int hk_access(const char *p, int m) {
     return orig_access(p, m);
 }
 
-// ==============================================
-// TỰ QUÉT TẤT CẢ HÀM BẢO MẬT
-// ==============================================
 static void scanAndHook(void) {
     struct rebinding hooks[128];
     int count = 0;
@@ -89,12 +80,12 @@ static void scanAndHook(void) {
 
                         for (int p = 0; patterns[p]; p++) {
                             if (strcasestr(sym, patterns[p])) {
-                                int retZero = strstr(sym, "Is") || strstr(sym, "Check") ||
+                                int retZeroFn = strstr(sym, "Is") || strstr(sym, "Check") ||
                                               strstr(sym, "Verify") || strstr(sym, "Detect") ||
                                               strstr(sym, "Has") || strstr(sym, "Get");
                                 hooks[count++] = (struct rebinding){
                                     sym,
-                                    retZero ? (void*)retZero : (void*)retEmpty,
+                                    retZeroFn ? (void*)retZero : (void*)retEmpty,
                                     NULL
                                 };
                                 if (count >= 120) goto scanDone;
@@ -111,18 +102,13 @@ scanDone:
     if (count > 0) rebind_symbols(hooks, count);
 }
 
-// ==============================================
-// KHỞI ĐỘNG NGAY KHI NẠP
-// ==============================================
 __attribute__((constructor(101)))
 static void AutoStart(void) {
     @autoreleasepool {
-        // Xóa dấu vết môi trường NGAY LẬP TỨC
         unsetenv("DYLD_INSERT_LIBRARIES");
         unsetenv("DYLD_LIBRARY_PATH");
         unsetenv("DYLD_FALLBACK_LIBRARY_PATH");
 
-        // Hook hệ thống ẩn dấu vết file
         struct rebinding sysHooks[] = {
             {"stat",   (void*)hk_stat,   (void**)&orig_stat},
             {"lstat",  (void*)hk_lstat,  (void**)&orig_lstat},
@@ -130,7 +116,6 @@ static void AutoStart(void) {
         };
         rebind_symbols(sysHooks, sizeof(sysHooks)/sizeof(sysHooks[0]));
 
-        // Tự quét & hook toàn bộ hàm bảo mật
         scanAndHook();
     }
 }
