@@ -5,6 +5,7 @@
 #import <mach-o/loader.h>
 #import <mach-o/nlist.h>
 #import <string.h>
+#import <libkern/OSCacheControl.h>  // === THÊM FILE ĐẦU ===
 #import "fishhook.h"
 
 // === TẮT CẢNH BÁO ===
@@ -115,7 +116,7 @@ static void ShowMenu(void) {
 #pragma clang diagnostic pop
 
 // ==============================================
-// PATCH BYTE TRỰC TIẾP VÀO BỘ NHỚ
+// PATCH BYTE — SỬA DỌNG XÓA BỘ NHỚ
 // ==============================================
 #include <sys/mman.h>
 
@@ -135,8 +136,13 @@ static BOOL PatchRVA(const char *imageName, uintptr_t rva, const void *bytes, si
             return NO;
         
         memcpy((void*)addr, bytes, len);
+        
+        // === SỬA DÒNG NÀY ===
+        // Thay __builtin___clear_cache bằng hàm chuẩn Apple
+        sys_dcache_flush((void*)addr, len);
+        sys_icache_invalidate((void*)addr, len);
+        
         mprotect((void*)page, plen, PROT_READ | PROT_EXEC);
-        __builtin___clear_cache((void*)addr, (void*)(addr + len));
         return YES;
     }
     return NO;
