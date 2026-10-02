@@ -7,16 +7,10 @@
 #import <string.h>
 #import "fishhook.h"
 
-// === TẮT CẢNH BÁO BỊ BÁO LỖI ===
+// === TẮT CẢNH BÁO ===
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
-// ==============================================
-// HÀM TRẢ VỀ
-// ==============================================
-static int  retZero(void)           { return 0; }
-static int  retOne(void)            { return 1; }
-static void retEmpty(void)          { }
+#pragma clang diagnostic ignored "-Wunused-function"
 
 // ==============================================
 // BIẾN ĐIỀU KHIỂN MENU
@@ -118,7 +112,6 @@ static void ShowMenu(void) {
     [UIView animateWithDuration:0.3 animations:^{ g_menu.view.alpha = 1; }];
 }
 
-// === KẾT THÚC TẮT CẢNH BÁO ===
 #pragma clang diagnostic pop
 
 // ==============================================
