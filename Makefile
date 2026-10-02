@@ -1,8 +1,9 @@
-THEOS = /home/runner/theos
+# Dùng ?= để Makefile tự nhận biến THEOS từ môi trường GitHub Actions truyền sang
+THEOS ?= /Users/runner/theos
 
 TARGET := iphone:clang:latest:14.0
 ARCHS := arm64
- 
+
 LIBRARY_NAME = eri
 
 eri_FILES = liberi.mm
