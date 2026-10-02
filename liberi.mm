@@ -44,7 +44,7 @@ static UIWindow* GetKeyWindow(void) {
 }
 
 // ==============================================
-// MENU KIỂU IMGUI — TỐI GIẢN, NHƯ GAME PC
+// MENU KIỂU IMGUI
 // ==============================================
 @interface ImGuiMenuView : UIView
 @property (nonatomic, strong) UIView *titleBar;
@@ -63,7 +63,6 @@ static UIWindow* GetKeyWindow(void) {
     return self;
 }
 
-// Không chặn sự kiện game
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
     for (UIView *sub in self.subviews) {
         if (CGRectContainsPoint(sub.frame, point)) return YES;
@@ -72,14 +71,12 @@ static UIWindow* GetKeyWindow(void) {
 }
 
 - (void)setupImGuiStyleUI {
-    // === Nền ImGui — Xám đen trong suốt, viền xanh lá ===
     self.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.08 alpha:0.92];
     self.layer.borderWidth = 1.5;
     self.layer.borderColor = [UIColor colorWithRed:0.18 green:0.8 blue:0.25 alpha:1].CGColor;
-    self.layer.cornerRadius = 0; // ImGui thường góc vuông
+    self.layer.cornerRadius = 0;
     self.frame = CGRectMake(15, 100, 260, 340);
     
-    // === Thanh tiêu đề ImGui ===
     self.titleBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 260, 32)];
     self.titleBar.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.12 alpha:1];
     [self addSubview:self.titleBar];
@@ -90,7 +87,6 @@ static UIWindow* GetKeyWindow(void) {
     title.font = [UIFont boldSystemFontOfSize:13];
     [self.titleBar addSubview:title];
     
-    // Nút thu gọn [−]
     UIButton *hideBtn = [UIButton buttonWithType:UIButtonTypeCustom];
     hideBtn.frame = CGRectMake(230, 4, 24, 24);
     [hideBtn setTitle:@"−" forState:UIControlStateNormal];
@@ -100,7 +96,6 @@ static UIWindow* GetKeyWindow(void) {
     [hideBtn addTarget:self action:@selector(onMinimize) forControlEvents:UIControlEventTouchUpInside];
     [self.titleBar addSubview:hideBtn];
     
-    // === Các mục công tắc ===
     CGFloat y = 45;
     [self addToggle:@"Bản đồ toàn cảnh"   y:&y val:&g_Enabled_Map        sel:@selector(toggled:)];
     [self addToggle:@"Tầm nhìn xa"        y:&y val:&g_Enabled_CamXa      sel:@selector(toggled:)];
@@ -108,13 +103,11 @@ static UIWindow* GetKeyWindow(void) {
     [self addToggle:@"Hiện tầm bắn"       y:&y val:&g_Enabled_LSD        sel:@selector(toggled:)];
     [self addToggle:@"Ẩn tia chỉ đường"   y:&y val:&g_Enabled_HideRay    sel:@selector(toggled:)];
     
-    // Cập nhật chiều cao tự động
     CGRect f = self.frame;
     f.size.height = y + 15;
     self.frame = f;
 }
 
-// Thêm 1 dòng công tắc kiểu ImGui
 - (void)addToggle:(NSString*)label y:(CGFloat*)y val:(BOOL*)val sel:(SEL)sel {
     const CGFloat padX = 12;
     const CGFloat h = 28;
@@ -128,7 +121,6 @@ static UIWindow* GetKeyWindow(void) {
     lbl.font = [UIFont systemFontOfSize:12];
     [row addSubview:lbl];
     
-    // Công tắc kiểu ImGui — ô vuông có dấu ✓
     UIButton *toggle = [UIButton buttonWithType:UIButtonTypeCustom];
     toggle.frame = CGRectMake(260 - padX - 24, 2, 24, 24);
     toggle.backgroundColor = *val ? [UIColor colorWithRed:0.18 green:0.8 blue:0.25 alpha:1] : [UIColor colorWithWhite:0.2 alpha:1];
@@ -145,10 +137,9 @@ static UIWindow* GetKeyWindow(void) {
     [self.switches addObject:@{@"val": [NSValue valueWithPointer:val], @"btn": toggle}];
     [self addSubview:row];
     
-    *y += h + 6; // Khoảng cách đều
+    *y += h + 6;
 }
 
-// Kéo di chuyển
 - (void)setupDrag {
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
     [self.titleBar addGestureRecognizer:pan];
@@ -165,7 +156,6 @@ static UIWindow* GetKeyWindow(void) {
     }
 }
 
-// Cập nhật giao diện khi bật/tắt
 - (void)updateToggleUI:(BOOL*)val {
     for (NSDictionary *item in self.switches) {
         BOOL *ptr = (BOOL*)[item[@"val"] pointerValue];
@@ -182,12 +172,12 @@ static UIWindow* GetKeyWindow(void) {
     *val = !*val;
     [self updateToggleUI:val];
     
-    // In log kiểm tra
-    if (val == &g_Enabled_Map)        NSLog(@"[Liberi] Bản đồ: %@", *val ? "ON" : "OFF");
-    if (val == &g_Enabled_CamXa)      NSLog(@"[Liberi] Cam xa: %@", *val ? "ON" : "OFF");
-    if (val == &g_Enabled_Unti)       NSLog(@"[Liberi] Hiện địch: %@", *val ? "ON" : "OFF");
-    if (val == &g_Enabled_LSD)        NSLog(@"[Liberi] Tầm bắn: %@", *val ? "ON" : "OFF");
-    if (val == &g_Enabled_HideRay)    NSLog(@"[Liberi] Ẩn tia: %@", *val ? "ON" : "OFF");
+    // ✅ Đã sửa: dùng %@ cho NSString
+    if (val == &g_Enabled_Map)        NSLog(@"[Liberi] Bản đồ: %@", *val ? @"ON" : @"OFF");
+    if (val == &g_Enabled_CamXa)      NSLog(@"[Liberi] Cam xa: %@", *val ? @"ON" : @"OFF");
+    if (val == &g_Enabled_Unti)       NSLog(@"[Liberi] Hiện địch: %@", *val ? @"ON" : @"OFF");
+    if (val == &g_Enabled_LSD)        NSLog(@"[Liberi] Tầm bắn: %@", *val ? @"ON" : @"OFF");
+    if (val == &g_Enabled_HideRay)    NSLog(@"[Liberi] Ẩn tia: %@", *val ? @"ON" : @"OFF");
 }
 
 - (void)onMinimize {
@@ -199,7 +189,7 @@ static UIWindow* GetKeyWindow(void) {
 @end
 
 // ==============================================
-// NÚT HIỆN LẠI — KIỂU IMGUI
+// NÚT HIỆN LẠI
 // ==============================================
 static void SetupShowButton(void) {
     if (g_showBtn) return;
@@ -297,7 +287,6 @@ struct PatchEntry {
 };
 
 static const struct PatchEntry g_patches[] = {
-    // anort — Tắt bảo vệ
     {"anort",         0x31C4C,  NULL, RET,          4, NULL},
     {"anort",         0x4591C,  NULL, RET,          4, NULL},
     {"anort",         0x2F8B0,  NULL, RET,          4, NULL},
@@ -306,7 +295,6 @@ static const struct PatchEntry g_patches[] = {
     {"anort",         0x2A6E8,  NULL, RET,          4, NULL},
     {"anort",         0x2B15C,  NULL, RET,          4, NULL},
     
-    // UnityFramework — Antiban
     {"UnityFramework", 0x706D890, NULL, RET,         4, NULL},
     {"UnityFramework", 0x706D914, NULL, RET,         4, NULL},
     {"UnityFramework", 0x706D9CC, NULL, RET,         4, NULL},
@@ -325,7 +313,6 @@ static const struct PatchEntry g_patches[] = {
     {"UnityFramework", 0x05B65CC, NULL, RET,         4, NULL},
     {"UnityFramework", 0x05B6764, NULL, RET,         4, NULL},
     
-    // Chức năng BẬT/TẮT
     {"UnityFramework", 0x4A38100, MAP_ON,       MAP_OFF,       4,  &g_Enabled_Map},
     {"UnityFramework", 0x554B9EC, CAM_DIST_ON,  CAM_DIST_OFF,  8,  &g_Enabled_CamXa},
     {"UnityFramework", 0x541142C, CAM_DIST_ON,  CAM_DIST_OFF, 12,  &g_Enabled_CamXa},
@@ -340,7 +327,7 @@ static const struct PatchEntry g_patches[] = {
 };
 
 // ==============================================
-// CẬP NHẬT PATCH MỖI 0.3s
+// CẬP NHẬT PATCH
 // ==============================================
 static void ApplyPatches(void) {
     for (int i = 0; g_patches[i].img; i++) {
