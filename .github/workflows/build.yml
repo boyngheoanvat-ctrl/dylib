@@ -1,9 +1,8 @@
-name: Build
+name: Build Mod
 
 on:
   push:
     paths:
-      - '**.m'
       - '**.mm'
       - 'Makefile'
   workflow_dispatch:
@@ -18,23 +17,21 @@ jobs:
       - name: ⬇️ Lấy code
         uses: actions/checkout@v4
 
-      - name: ⚡ Cài Make + Theos
+      - name: ⚡ Cài Theos
         run: |
-          brew install make
-          export THEOS=/Users/runner/theos
+          export THEOS=$HOME/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          $THEOS/bin/update-theos
-          echo "PATH=$(brew --prefix make)/libexec/gnubin:$THEOS/bin:$PATH" >> $GITHUB_PATH
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+          echo "$THEOS/bin" >> $GITHUB_PATH
 
       - name: 🔨 Build
         run: |
-          export THEOS=/Users/runner/theos
           make clean
           make -j$(sysctl -n hw.ncpu)
 
-      - name: 📦 Lấy file kết quả
+      - name: 📦 Tải kết quả
         uses: actions/upload-artifact@v4
         with:
-          name: libsupport-dylib
+          name: libsupport
           path: .theos/obj/**/*.dylib
           retention-days: 7
