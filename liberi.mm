@@ -25,6 +25,8 @@ static BOOL g_Enabled_HideRay    = NO;
 static UIView *g_menuView = nil;
 static UIButton *g_showBtn = nil;
 static CGPoint g_touchStartPos;
+static CGSize g_startSize;
+static BOOL g_isResizing = NO;
 
 // ==============================================
 // LẤY WINDOW
@@ -44,11 +46,13 @@ static UIWindow* GetKeyWindow(void) {
 }
 
 // ==============================================
-// MENU KIỂU IMGUI
+// MENU KIỂU IMGUI — KÉO GIÃN ĐƯỢC
 // ==============================================
 @interface ImGuiMenuView : UIView
 @property (nonatomic, strong) UIView *titleBar;
+@property (nonatomic, strong) UIView *resizeHandle;
 @property (nonatomic, strong) NSMutableArray *switches;
+@property (nonatomic, assign) CGFloat rowHeight;
 @end
 
 @implementation ImGuiMenuView
@@ -57,8 +61,10 @@ static UIWindow* GetKeyWindow(void) {
     self = [super initWithFrame:frame];
     if (self) {
         self.switches = [NSMutableArray new];
+        self.rowHeight = 34.0;
         [self setupImGuiStyleUI];
         [self setupDrag];
+        [self setupResize];
     }
     return self;
 }
@@ -75,20 +81,22 @@ static UIWindow* GetKeyWindow(void) {
     self.layer.borderWidth = 1.5;
     self.layer.borderColor = [UIColor colorWithRed:0.18 green:0.8 blue:0.25 alpha:1].CGColor;
     self.layer.cornerRadius = 0;
-    self.frame = CGRectMake(15, 100, 260, 340);
+    self.frame = CGRectMake(15, 100, 280, 360);
     
-    self.titleBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 260, 32)];
+    // === Thanh tiêu đề — ĐỔI TÊN ===
+    self.titleBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 280, 34)];
     self.titleBar.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.12 alpha:1];
     [self addSubview:self.titleBar];
     
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(8, 6, 200, 20)];
-    title.text = @"LIBERI";
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 7, 220, 20)];
+    title.text = @"Mod By Eri Nguyễn"; // ✅ Tên mới
     title.textColor = [UIColor colorWithRed:0.18 green:0.8 blue:0.25 alpha:1];
     title.font = [UIFont boldSystemFontOfSize:13];
     [self.titleBar addSubview:title];
     
+    // Nút thu gọn
     UIButton *hideBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-    hideBtn.frame = CGRectMake(230, 4, 24, 24);
+    hideBtn.frame = CGRectMake(250, 5, 24, 24);
     [hideBtn setTitle:@"−" forState:UIControlStateNormal];
     [hideBtn setTitleColor:[UIColor lightGrayColor] forState:UIControlStateNormal];
     hideBtn.titleLabel.font = [UIFont boldSystemFontOfSize:13];
@@ -96,33 +104,35 @@ static UIWindow* GetKeyWindow(void) {
     [hideBtn addTarget:self action:@selector(onMinimize) forControlEvents:UIControlEventTouchUpInside];
     [self.titleBar addSubview:hideBtn];
     
-    CGFloat y = 45;
+    // === Các mục công tắc ===
+    CGFloat y = 50;
     [self addToggle:@"Bản đồ toàn cảnh"   y:&y val:&g_Enabled_Map        sel:@selector(toggled:)];
     [self addToggle:@"Tầm nhìn xa"        y:&y val:&g_Enabled_CamXa      sel:@selector(toggled:)];
     [self addToggle:@"Hiện kẻ địch"       y:&y val:&g_Enabled_Unti       sel:@selector(toggled:)];
     [self addToggle:@"Hiện tầm bắn"       y:&y val:&g_Enabled_LSD        sel:@selector(toggled:)];
     [self addToggle:@"Ẩn tia chỉ đường"   y:&y val:&g_Enabled_HideRay    sel:@selector(toggled:)];
     
+    // Cập nhật chiều cao
     CGRect f = self.frame;
-    f.size.height = y + 15;
+    f.size.height = y + 20;
     self.frame = f;
 }
 
 - (void)addToggle:(NSString*)label y:(CGFloat*)y val:(BOOL*)val sel:(SEL)sel {
-    const CGFloat padX = 12;
-    const CGFloat h = 28;
+    const CGFloat padX = 15;
+    const CGFloat h = self.rowHeight;
     
-    UIView *row = [[UIView alloc] initWithFrame:CGRectMake(padX, *y, 260 - padX*2, h)];
+    UIView *row = [[UIView alloc] initWithFrame:CGRectMake(padX, *y, 280 - padX*2, h)];
     row.backgroundColor = [UIColor clearColor];
     
-    UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 4, 180, 20)];
+    UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 6, 200, 22)];
     lbl.text = label;
     lbl.textColor = [UIColor whiteColor];
-    lbl.font = [UIFont systemFontOfSize:12];
+    lbl.font = [UIFont systemFontOfSize:13];
     [row addSubview:lbl];
     
     UIButton *toggle = [UIButton buttonWithType:UIButtonTypeCustom];
-    toggle.frame = CGRectMake(260 - padX - 24, 2, 24, 24);
+    toggle.frame = CGRectMake(280 - padX - 28, 4, 28, 26);
     toggle.backgroundColor = *val ? [UIColor colorWithRed:0.18 green:0.8 blue:0.25 alpha:1] : [UIColor colorWithWhite:0.2 alpha:1];
     toggle.layer.borderWidth = 1;
     toggle.layer.borderColor = [UIColor colorWithWhite:0.4 alpha:1].CGColor;
@@ -130,16 +140,17 @@ static UIWindow* GetKeyWindow(void) {
     toggle.tag = (NSInteger)val;
     [toggle setTitle:*val ? @"✓" : @"" forState:UIControlStateNormal];
     [toggle setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    toggle.titleLabel.font = [UIFont boldSystemFontOfSize:12];
+    toggle.titleLabel.font = [UIFont boldSystemFontOfSize:14];
     [toggle addTarget:self action:sel forControlEvents:UIControlEventTouchUpInside];
     [row addSubview:toggle];
     
     [self.switches addObject:@{@"val": [NSValue valueWithPointer:val], @"btn": toggle}];
     [self addSubview:row];
     
-    *y += h + 6;
+    *y += h + 8;
 }
 
+// === KÉO DI CHUYỂN ===
 - (void)setupDrag {
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
     [self.titleBar addGestureRecognizer:pan];
@@ -153,6 +164,34 @@ static UIWindow* GetKeyWindow(void) {
         CGFloat dx = p.x - g_touchStartPos.x;
         CGFloat dy = p.y - g_touchStartPos.y;
         self.center = CGPointMake(self.center.x + dx, self.center.y + dy);
+    }
+}
+
+// === KÉO GIÃN TO/NHỎ GÓC DƯỚI PHẢI ===
+- (void)setupResize {
+    self.resizeHandle = [[UIView alloc] initWithFrame:CGRectMake(self.bounds.size.width - 24, self.bounds.size.height - 24, 24, 24)];
+    self.resizeHandle.backgroundColor = [UIColor clearColor];
+    UIPanGestureRecognizer *resizePan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleResize:)];
+    [self.resizeHandle addGestureRecognizer:resizePan];
+    [self addSubview:self.resizeHandle];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.resizeHandle.frame = CGRectMake(self.bounds.size.width - 24, self.bounds.size.height - 24, 24, 24);
+}
+
+- (void)handleResize:(UIPanGestureRecognizer*)g {
+    if (g.state == UIGestureRecognizerStateBegan) {
+        g_startSize = self.bounds.size;
+        g_isResizing = YES;
+    } else if (g.state == UIGestureRecognizerStateChanged) {
+        CGPoint p = [g locationInView:self];
+        CGFloat newW = MAX(260, MIN(500, g_startSize.width + (p.x - g_startSize.width)));
+        CGFloat newH = MAX(280, MIN(600, g_startSize.height + (p.y - g_startSize.height)));
+        self.frame = CGRectMake(self.frame.origin.x, self.frame.origin.y, newW, newH);
+    } else if (g.state == UIGestureRecognizerStateEnded) {
+        g_isResizing = NO;
     }
 }
 
@@ -172,12 +211,11 @@ static UIWindow* GetKeyWindow(void) {
     *val = !*val;
     [self updateToggleUI:val];
     
-    // ✅ Đã sửa: dùng %@ cho NSString
-    if (val == &g_Enabled_Map)        NSLog(@"[Liberi] Bản đồ: %@", *val ? @"ON" : @"OFF");
-    if (val == &g_Enabled_CamXa)      NSLog(@"[Liberi] Cam xa: %@", *val ? @"ON" : @"OFF");
-    if (val == &g_Enabled_Unti)       NSLog(@"[Liberi] Hiện địch: %@", *val ? @"ON" : @"OFF");
-    if (val == &g_Enabled_LSD)        NSLog(@"[Liberi] Tầm bắn: %@", *val ? @"ON" : @"OFF");
-    if (val == &g_Enabled_HideRay)    NSLog(@"[Liberi] Ẩn tia: %@", *val ? @"ON" : @"OFF");
+    NSLog(@"[ModByEri] Bản đồ: %@", g_Enabled_Map ? @"ON" : @"OFF");
+    NSLog(@"[ModByEri] Cam xa: %@", g_Enabled_CamXa ? @"ON" : @"OFF");
+    NSLog(@"[ModByEri] Hiện địch: %@", g_Enabled_Unti ? @"ON" : @"OFF");
+    NSLog(@"[ModByEri] Tầm bắn: %@", g_Enabled_LSD ? @"ON" : @"OFF");
+    NSLog(@"[ModByEri] Ẩn tia: %@", g_Enabled_HideRay ? @"ON" : @"OFF");
 }
 
 - (void)onMinimize {
@@ -204,7 +242,7 @@ static void SetupShowButton(void) {
     g_showBtn.layer.cornerRadius = 2;
     g_showBtn.alpha = 0;
     g_showBtn.hidden = YES;
-    [g_showBtn setTitle:@"L" forState:UIControlStateNormal];
+    [g_showBtn setTitle:@"E" forState:UIControlStateNormal];
     [g_showBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     g_showBtn.titleLabel.font = [UIFont boldSystemFontOfSize:15];
     
@@ -227,7 +265,7 @@ static void ShowMenu(void) {
     UIWindow *w = GetKeyWindow();
     if (!w) return;
     
-    g_menuView = [[ImGuiMenuView alloc] initWithFrame:CGRectMake(15, 100, 260, 340)];
+    g_menuView = [[ImGuiMenuView alloc] initWithFrame:CGRectMake(15, 100, 280, 360)];
     g_menuView.alpha = 0;
     g_menuView.layer.zPosition = 999;
     [w addSubview:g_menuView];
@@ -238,7 +276,7 @@ static void ShowMenu(void) {
 #pragma clang diagnostic pop
 
 // ==============================================
-// PATCH BYTE
+// PATCH BYTE — KIỂM TRA LỖI GHI
 // ==============================================
 #include <sys/mman.h>
 
@@ -254,15 +292,21 @@ static BOOL PatchRVA(const char *imageName, uintptr_t rva, const void *bytes, si
         
         uintptr_t page = addr & ~(PAGE_SIZE - 1);
         size_t plen = (addr + len - page + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-        if (mprotect((void*)page, plen, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+        
+        if (mprotect((void*)page, plen, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+            NSLog(@"[ERROR] mprotect thất bại tại %s 0x%lx -> %d", imageName, rva, errno);
             return NO;
+        }
         
         memcpy((void*)addr, bytes, len);
         sys_dcache_flush((void*)addr, len);
         sys_icache_invalidate((void*)addr, len);
         mprotect((void*)page, plen, PROT_READ | PROT_EXEC);
+        
+        NSLog(@"[PATCH] %s 0x%lx → OK", imageName, rva);
         return YES;
     }
+    NSLog(@"[ERROR] Không tìm thấy %s", imageName);
     return NO;
 }
 
@@ -287,6 +331,7 @@ struct PatchEntry {
 };
 
 static const struct PatchEntry g_patches[] = {
+    // anort — Tắt bảo vệ
     {"anort",         0x31C4C,  NULL, RET,          4, NULL},
     {"anort",         0x4591C,  NULL, RET,          4, NULL},
     {"anort",         0x2F8B0,  NULL, RET,          4, NULL},
@@ -295,6 +340,7 @@ static const struct PatchEntry g_patches[] = {
     {"anort",         0x2A6E8,  NULL, RET,          4, NULL},
     {"anort",         0x2B15C,  NULL, RET,          4, NULL},
     
+    // UnityFramework — Antiban
     {"UnityFramework", 0x706D890, NULL, RET,         4, NULL},
     {"UnityFramework", 0x706D914, NULL, RET,         4, NULL},
     {"UnityFramework", 0x706D9CC, NULL, RET,         4, NULL},
@@ -313,6 +359,7 @@ static const struct PatchEntry g_patches[] = {
     {"UnityFramework", 0x05B65CC, NULL, RET,         4, NULL},
     {"UnityFramework", 0x05B6764, NULL, RET,         4, NULL},
     
+    // Chức năng BẬT/TẮT
     {"UnityFramework", 0x4A38100, MAP_ON,       MAP_OFF,       4,  &g_Enabled_Map},
     {"UnityFramework", 0x554B9EC, CAM_DIST_ON,  CAM_DIST_OFF,  8,  &g_Enabled_CamXa},
     {"UnityFramework", 0x541142C, CAM_DIST_ON,  CAM_DIST_OFF, 12,  &g_Enabled_CamXa},
@@ -327,15 +374,19 @@ static const struct PatchEntry g_patches[] = {
 };
 
 // ==============================================
-// CẬP NHẬT PATCH
+// CẬP NHẬT PATCH + IN LOG CHI TIẾT
 // ==============================================
 static void ApplyPatches(void) {
+    NSLog(@"[ModByEri] === Bắt đầu Patch ===");
+    
+    // Patch cố định
     for (int i = 0; g_patches[i].img; i++) {
         if (!g_patches[i].flag && g_patches[i].off) {
             PatchRVA(g_patches[i].img, g_patches[i].rva, g_patches[i].off, g_patches[i].len);
         }
     }
     
+    // Patch động mỗi 0.3s
     dispatch_async(dispatch_get_main_queue(), ^{
         [NSTimer scheduledTimerWithTimeInterval:0.3 repeats:YES block:^(NSTimer *t){
             for (int i = 0; g_patches[i].img; i++) {
@@ -351,13 +402,13 @@ static void ApplyPatches(void) {
 }
 
 // ==============================================
-// ẨN DẤU VẾT
+// ẨN DẤU VẾT — SỬA TÊN DYLIB → libsupport.dylib
 // ==============================================
 static int (*orig_access)(const char *, int) = NULL;
 static int hk_access(const char *path, int mode) {
     if (!path) return -1;
-    if (strstr(path, "liberi") || strstr(path, ".dylib") ||
-        strstr(path, "fishhook") || strstr(path, "libsupport")) {
+    if (strstr(path, "libsupport") || strstr(path, ".dylib") ||
+        strstr(path, "fishhook") || strstr(path, "theos")) {
         errno = ENOENT;
         return -1;
     }
