@@ -11,16 +11,9 @@ jobs:
 
       - name: Setup Dependencies & Theos
         run: |
-          # Cài đặt ldid để ký file dylib iOS
           brew install ldid
-
-          # Xóa sạch thư mục theos cũ tránh xung đột
           rm -rf ~/theos
-          
-          # Clone Theos kèm submodule
           git clone --recursive https://github.com/theos/theos.git ~/theos
-          
-          # Cài đặt iOS SDKs
           rm -rf ~/theos/sdks
           git clone --depth 1 https://github.com/theos/sdks.git ~/theos/sdks
 
@@ -30,3 +23,10 @@ jobs:
         run: |
           make clean
           make
+
+      # Bước mới: Đưa file dylib lên mục Artifacts để tải về
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eri-dylib
+          path: .theos/obj/debug/eri.dylib # Hoặc kiểm tra đường dẫn file dylib nếu nó xuất ra ở thư mục gốc
