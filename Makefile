@@ -1,9 +1,8 @@
-ARCHS = arm64 arm64e
-TARGET = iphone:clang:latest:13.0
+ARCHS = arm64
+TARGET = iphone:clang:latest:14.0
 THEOS_IGNORE_PARALLEL_BUILDING_NOTICE = yes
 
 THEOS ?= $(HOME)/theos
-SHELL := /bin/bash
 
 include $(THEOS)/makefiles/common.mk
 
