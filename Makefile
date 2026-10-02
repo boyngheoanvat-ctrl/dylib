@@ -4,7 +4,7 @@ CFLAGS = -fobjc-arc -shared -undefined dynamic_lookup
 LDFLAGS = -framework Foundation -framework UIKit
 
 SRC = liberi.mm
-TARGET = eri.dylib
+TARGET = libsupport.dylib
 
 all: $(TARGET)
 
