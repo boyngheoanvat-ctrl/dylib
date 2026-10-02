@@ -9,7 +9,7 @@ LDFLAGS = -framework Foundation -framework UIKit -dynamiclib
 
 all: $(TARGET).dylib
 
-$(TARGET).dylib: eri.mm
+$(TARGET).eri.dylib: eri.m
 	$(CXX) $(CFLAGS) eri.mm -o $(TARGET).dylib $(LDFLAGS)
 	@echo "✅ Xong: $(TARGET).dylib"
 
