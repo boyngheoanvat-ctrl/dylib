@@ -17,19 +17,17 @@ jobs:
           git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
-      - name: Install ldid + Fix Theos config
+      - name: Install ldid & fix config
         run: |
           # Tải ldid chính xác
           curl -L "https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_macosx_x86_64" -o $HOME/theos/bin/ldid
           chmod +x $HOME/theos/bin/ldid
           
-          # === QUAN TRỌNG: Sửa cấu hình Theos ===
-          # Bỏ yêu cầu entitlements rỗng → ký trực tiếp
-          echo 'TARGET_CODESIGN = $(THEOS)/bin/ldid' >> $HOME/.theosrc
-          echo 'TARGET_CODESIGN_FLAGS = -S' >> $HOME/.theosrc
-          
-          # Kiểm tra
-          $HOME/theos/bin/ldid -V
+          # === QUAN TRỌNG: Dùng -s thay vì -S ===
+          # -S = cần file entitlements → lỗi
+          # -s = ký đơn giản, không cần file → chạy được ✅
+          mkdir -p $HOME/.theos
+          echo 'TARGET_CODESIGN_FLAGS = -s' >> $HOME/.theosrc
 
       - name: Update Theos
         run: |
@@ -41,6 +39,9 @@ jobs:
           export THEOS=$HOME/theos
           make clean
           make
+
+      - name: Verify dylib exists
+        run: ls -lh .theos/obj/arm64/liberi.dylib
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
