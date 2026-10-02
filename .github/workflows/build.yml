@@ -12,12 +12,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Theos
+      - name: Set up Theos & tools
         run: |
+          # Cài Theos
           git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          
+          # Cài ldid — công cụ ký
+          git clone --depth 1 https://github.com/kevinbrook/ldid.git $HOME/ldid
+          cd $HOME/ldid && make install PREFIX=$HOME
+          echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Update Theos — Tải đầy đủ thư viện
+      - name: Update Theos
         run: |
           export THEOS=$HOME/theos
           $THEOS/bin/update-theos
@@ -25,6 +31,7 @@ jobs:
       - name: Build project
         run: |
           export THEOS=$HOME/theos
+          export PATH="$HOME/bin:$PATH"
           make clean
           make
 
