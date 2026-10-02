@@ -8,8 +8,7 @@
 #import <mach-o/dyld.h>
 
 /*
- * fishhook — Từ nguồn gốc Facebook
- * Đã sửa lỗi trùng tên macro & thiếu include
+ * fishhook — Nguồn Facebook, đã sửa lỗi biên dịch
  */
 
 #if defined(__arm64__) || defined(__aarch64__)
@@ -24,7 +23,7 @@
 # define LC_SEGMENT_CMD LC_SEGMENT
 #endif
 
-// ⚠️ ĐỔI TÊN TRÁNH TRÙNG VỚI MACRO HỆ THỐNG
+// Đổi tên tránh trùng macro hệ thống
 #define MY_INDIRECT_SYMBOL_ABS     0x40000000
 #define MY_INDIRECT_SYMBOL_LOCAL   0x80000000
 
@@ -35,7 +34,8 @@ struct rebinding_private {
     struct nlist *nl;
 };
 
-static bool perform_rebinding_with_section(struct rebinding_private *rebindings,
+// Truyền con trỏ thay vì truy cập biến ngoài
+static bool perform_rebinding_with_section(struct rebinding_private *priv,
                                            size_t nrebindings,
                                            const struct MACH_HEADER *header,
                                            intptr_t slide,
@@ -81,18 +81,17 @@ static bool perform_rebinding_with_section(struct rebinding_private *rebindings,
 
             const char *symbol_name = strtab + symbols[symbol_index].n_un.n_strx;
             for (size_t j = 0; j < nrebindings; j++) {
-                if (rebindings_private[j].nl &&
-                    rebindings_private[j].nl - symbols == symbol_index) {
+                if (priv[j].nl && priv[j].nl - symbols == symbol_index) {
                     void **symbol_ptr = (void **)((uintptr_t)header + slide + section->addr + i * sizeof(void *));
 
                     vm_address_t page_start = (vm_address_t)symbol_ptr & ~(vm_page_size - 1);
                     kern_return_t kr = vm_protect(mach_task_self(), page_start,
                         vm_page_size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE);
                     if (kr == KERN_SUCCESS) {
-                        if (rebindings_private[j].replaced && !*rebindings_private[j].replaced) {
-                            *rebindings_private[j].replaced = *symbol_ptr;
+                        if (priv[j].replaced && !*priv[j].replaced) {
+                            *priv[j].replaced = *symbol_ptr;
                         }
-                        *symbol_ptr = rebindings_private[j].replacement;
+                        *symbol_ptr = priv[j].replacement;
                         success = true;
                     }
                     vm_protect(mach_task_self(), page_start,
