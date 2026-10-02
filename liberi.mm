@@ -28,7 +28,6 @@ bool RawCodePatch(uintptr_t absolute_address, const void* patch_bytes, size_t le
     size_t page_size = sysconf(_SC_PAGESIZE);
     uintptr_t page_start = (absolute_address & ~(page_size - 1));
 
-    // Kiểm tra xem phân vùng có hợp lệ không trước khi mprotect
     if (mprotect((void*)page_start, page_size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
         return false;
     }
@@ -68,7 +67,6 @@ void PatchOffset(uintptr_t base_addr, uint64_t offset, const char* hex_bytes) {
     RawCodePatch(target_addr, bytes, len);
 }
 
-// Chạy Antiban an toàn trong luồng nền
 void apply_antiban() {
     while (unity_base_addr == 0) {
         unity_base_addr = get_image_slide_address("UnityFramework");
