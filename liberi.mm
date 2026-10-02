@@ -6,11 +6,14 @@
 // State variables for features
 static BOOL g_mapEnabled = NO;
 static BOOL g_camXaEnabled = NO;
-static BOOL g_custom1_1Enabled = NO;
-static BOOL g_custom1_2Enabled = NO;
 static BOOL g_showUnitEnabled = NO;
 static BOOL g_showLsdEnabled = NO;
 static BOOL g_hideTiaEnabled = NO;
+
+// UI Elements
+static UIWindow *g_overlayWindow = nil;
+static UIView *g_menuView = nil;
+static UIButton *g_floatingButton = nil;
 
 static void patch_memory(void *addr, const void *data, size_t len) {
     vm_address_t page_start = (vm_address_t)addr & ~(PAGE_SIZE - 1);
@@ -96,11 +99,11 @@ static void apply_antiban_patches(void) {
     P2(0x72AE46C); P2(0x735B4AC); P2(0x5B4A54C); P2(0xB9AE00);
 }
 
-#pragma mark - Feature Actions & UI Toggles
+#pragma mark - Feature Actions
 static void toggle_map(UIButton *sender) {
     g_mapEnabled = !g_mapEnabled;
-    sender.backgroundColor = g_mapEnabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_mapEnabled ? @"MAP: ON" : @"MAP: OFF" forState:UIControlStateNormal];
+    sender.backgroundColor = g_mapEnabled ? [UIColor colorWithRed:0.12 green:0.75 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.25 green:0.25 blue:0.25 alpha:1.0];
+    [sender setTitle:g_mapEnabled ? @"[ON] MAP" : @"[OFF] MAP" forState:UIControlStateNormal];
     
     if (g_mapEnabled) {
         patch_rva("UnityFramework", 0x4A38100, (const unsigned char*)"\x36\x00\x80\xD2", 4);
@@ -109,70 +112,50 @@ static void toggle_map(UIButton *sender) {
     }
 }
 
-static void toggle_camxa1(UIButton *sender) {
+static void toggle_camxa(UIButton *sender) {
     g_camXaEnabled = !g_camXaEnabled;
-    sender.backgroundColor = g_camXaEnabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_camXaEnabled ? @"CAM XA: ON" : @"CAM XA: OFF" forState:UIControlStateNormal];
+    sender.backgroundColor = g_camXaEnabled ? [UIColor colorWithRed:0.12 green:0.75 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.25 green:0.25 blue:0.25 alpha:1.0];
+    [sender setTitle:g_camXaEnabled ? @"[ON] CAM XA" : @"[OFF] CAM XA" forState:UIControlStateNormal];
     
-    const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    patch_rva("UnityFramework", 0x554B9EC, g_camXaEnabled ? RET_20 : ORIG, 8);
+    const unsigned char CAM_BYTES1[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+    const unsigned char CAM_BYTES2[] = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
+    const unsigned char ORIG_8[]     = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+    const unsigned char ORIG_12[]    = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
+
+    if (g_camXaEnabled) {
+        patch_rva("UnityFramework", 0x554B9EC, CAM_BYTES1, 8);
+        patch_rva("UnityFramework", 0x541142C, CAM_BYTES2, 12);
+        patch_rva("UnityFramework", 0x550E2BC, CAM_BYTES2, 12);
+    } else {
+        patch_rva("UnityFramework", 0x554B9EC, ORIG_8, 8);
+        patch_rva("UnityFramework", 0x541142C, ORIG_12, 12);
+        patch_rva("UnityFramework", 0x550E2BC, ORIG_12, 12);
+    }
 }
 
-static void toggle_camxa2(UIButton *sender) {
-    g_custom1_1Enabled = !g_custom1_1Enabled;
-    sender.backgroundColor = g_custom1_1Enabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_custom1_1Enabled ? @"CUSTOM 1: ON" : @"CUSTOM 1: OFF" forState:UIControlStateNormal];
-    
-    const unsigned char CUSTOM1[] = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char ORIG[]    = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
-    patch_rva("UnityFramework", 0x541142C, g_custom1_1Enabled ? CUSTOM1 : ORIG, sizeof(CUSTOM1));
-}
-
-static void toggle_camxa3(UIButton *sender) {
-    g_custom1_2Enabled = !g_custom1_2Enabled;
-    sender.backgroundColor = g_custom1_2Enabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_custom1_2Enabled ? @"CUSTOM 2: ON" : @"CUSTOM 2: OFF" forState:UIControlStateNormal];
-    
-    const unsigned char CUSTOM1[] = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char ORIG[]    = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
-    patch_rva("UnityFramework", 0x550E2BC, g_custom1_2Enabled ? CUSTOM1 : ORIG, sizeof(CUSTOM1));
-}
-
-static void toggle_showunit1(UIButton *sender) {
+static void toggle_showunit(UIButton *sender) {
     g_showUnitEnabled = !g_showUnitEnabled;
-    sender.backgroundColor = g_showUnitEnabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_showUnitEnabled ? @"SHOW UNIT 1: ON" : @"SHOW UNIT 1: OFF" forState:UIControlStateNormal];
+    sender.backgroundColor = g_showUnitEnabled ? [UIColor colorWithRed:0.12 green:0.75 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.25 green:0.25 blue:0.25 alpha:1.0];
+    [sender setTitle:g_showUnitEnabled ? @"[ON] SHOW UNIT" : @"[OFF] SHOW UNIT" forState:UIControlStateNormal];
     
-    const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    patch_rva("UnityFramework", 0x5F1C394, g_showUnitEnabled ? RET_20 : ORIG, 8);
-}
+    const unsigned char UNIT_BYTES[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+    const unsigned char ORIG_8[]     = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
 
-static void toggle_showunit2(UIButton *sender) {
-    g_showUnitEnabled = !g_showUnitEnabled;
-    sender.backgroundColor = g_showUnitEnabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_showUnitEnabled ? @"SHOW UNIT 2: ON" : @"SHOW UNIT 2: OFF" forState:UIControlStateNormal];
-    
-    const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    patch_rva("UnityFramework", 0x6A6B798, g_showUnitEnabled ? RET_20 : ORIG, 8);
-}
-
-static void toggle_showunit3(UIButton *sender) {
-    g_showUnitEnabled = !g_showUnitEnabled;
-    sender.backgroundColor = g_showUnitEnabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_showUnitEnabled ? @"SHOW UNIT 3: ON" : @"SHOW UNIT 3: OFF" forState:UIControlStateNormal];
-    
-    const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-    patch_rva("UnityFramework", 0x6A6B8FC, g_showUnitEnabled ? RET_20 : ORIG, 8);
+    if (g_showUnitEnabled) {
+        patch_rva("UnityFramework", 0x5F1C394, UNIT_BYTES, 8);
+        patch_rva("UnityFramework", 0x6A6B798, UNIT_BYTES, 8);
+        patch_rva("UnityFramework", 0x6A6B8FC, UNIT_BYTES, 8);
+    } else {
+        patch_rva("UnityFramework", 0x5F1C394, ORIG_8, 8);
+        patch_rva("UnityFramework", 0x6A6B798, ORIG_8, 8);
+        patch_rva("UnityFramework", 0x6A6B8FC, ORIG_8, 8);
+    }
 }
 
 static void toggle_showlsd(UIButton *sender) {
     g_showLsdEnabled = !g_showLsdEnabled;
-    sender.backgroundColor = g_showLsdEnabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_showLsdEnabled ? @"SHOW LSD: ON" : @"SHOW LSD: OFF" forState:UIControlStateNormal];
+    sender.backgroundColor = g_showLsdEnabled ? [UIColor colorWithRed:0.12 green:0.75 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.25 green:0.25 blue:0.25 alpha:1.0];
+    [sender setTitle:g_showLsdEnabled ? @"[ON] SHOW LSD" : @"[OFF] SHOW LSD" forState:UIControlStateNormal];
     
     const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
     const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
@@ -181,51 +164,119 @@ static void toggle_showlsd(UIButton *sender) {
 
 static void toggle_hidetia(UIButton *sender) {
     g_hideTiaEnabled = !g_hideTiaEnabled;
-    sender.backgroundColor = g_hideTiaEnabled ? [UIColor systemGreenColor] : [UIColor systemRedColor];
-    [sender setTitle:g_hideTiaEnabled ? @"ẨN TIA: ON" : @"ẨN TIA: OFF" forState:UIControlStateNormal];
+    sender.backgroundColor = g_hideTiaEnabled ? [UIColor colorWithRed:0.12 green:0.75 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.25 green:0.25 blue:0.25 alpha:1.0];
+    [sender setTitle:g_hideTiaEnabled ? @"[ON] ẨN TIA" : @"[OFF] ẨN TIA" forState:UIControlStateNormal];
     
     const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
     const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
     patch_rva("UnityFramework", 0x5FBEC8C, g_hideTiaEnabled ? RET_20 : ORIG, 8);
 }
 
-static UIButton* create_button(CGRect frame, NSString *title, SEL action) {
+#pragma mark - ImGui Style Menu Creation
+static void toggle_menu_visibility(void) {
+    g_menuView.hidden = !g_menuView.hidden;
+}
+
+static void handle_pan(UIPanGestureRecognizer *recognizer) {
+    UIView *btn = recognizer.view;
+    CGPoint translation = [recognizer translationInView:btn.superview];
+    btn.center = CGPointMake(btn.center.x + translation.x, btn.center.y + translation.y);
+    [recognizer setTranslation:CGPointZero inView:btn.superview];
+}
+
+static void handle_menu_pan(UIPanGestureRecognizer *recognizer) {
+    UIView *menu = recognizer.view;
+    CGPoint translation = [recognizer translationInView:menu.superview];
+    menu.center = CGPointMake(menu.center.x + translation.x, menu.center.y + translation.y);
+    [recognizer setTranslation:CGPointZero inView:menu.superview];
+}
+
+static UIButton* create_imgui_toggle(CGRect frame, NSString *title, SEL action) {
     UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
     btn.frame = frame;
-    btn.layer.cornerRadius = 6;
-    btn.backgroundColor = [UIColor systemRedColor];
-    [btn setTitle:[NSString stringWithFormat:@"%@: OFF", title] forState:UIControlStateNormal];
+    btn.layer.cornerRadius = 4;
+    btn.backgroundColor = [UIColor colorWithRed:0.25 green:0.25 blue:0.25 alpha:1.0];
+    [btn setTitle:[NSString stringWithFormat:@"[OFF] %@", title] forState:UIControlStateNormal];
     [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     btn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
     [btn addTarget:nil action:action forControlEvents:UIControlEventTouchUpInside];
-    btn.layer.zPosition = 1000;
     return btn;
 }
 
-static void show_all_toggle_buttons(void) {
+static void setup_imgui_menu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *win = [[UIApplication sharedApplication] keyWindow];
-        CGFloat w = 140, h = 32, startY = 50, spacing = 36;
+        g_overlayWindow = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+        g_overlayWindow.windowLevel = UIWindowLevelAlert + 999;
+        g_overlayWindow.backgroundColor = [UIColor clearColor];
+        g_overlayWindow.hidden = NO;
         
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 0), w, h), @"MAP", @selector(toggle_map:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 1), w, h), @"CAM XA", @selector(toggle_camxa1:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 2), w, h), @"CUST 1", @selector(toggle_camxa2:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 3), w, h), @"CUST 2", @selector(toggle_camxa3:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 4), w, h), @"SHOW UNIT 1", @selector(toggle_showunit1:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 5), w, h), @"SHOW UNIT 2", @selector(toggle_showunit2:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 6), w, h), @"SHOW UNIT 3", @selector(toggle_showunit3:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 7), w, h), @"SHOW LSD", @selector(toggle_showlsd:))];
-        [win addSubview:create_button(CGRectMake(20, startY + (spacing * 8), w, h), @"ẨN TIA", @selector(toggle_hidetia:))];
+        // Cửa sổ chính kiểu ImGui (Dark theme, bo góc, viền mỏng)
+        g_menuView = [[UIView alloc] initWithFrame:CGRectMake(100, 100, 200, 245)];
+        g_menuView.backgroundColor = [UIColor colorWithRed:0.11 green:0.11 blue:0.12 alpha:0.92];
+        g_menuView.layer.cornerRadius = 6;
+        g_menuView.layer.borderWidth = 1.0;
+        g_menuView.layer.borderColor = [UIColor colorWithRed:0.30 green:0.30 blue:0.32 alpha:1.0].CGColor;
+        g_menuView.hidden = YES; // Mặc định ẩn, bấm nút nổi để mở
+        
+        // Tiêu đề ImGui Window
+        UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 200, 25)];
+        titleLabel.text = @"  ERI CHEAT MENU v1.0";
+        titleLabel.textColor = [UIColor colorWithRed:0.8 green:0.8 blue:0.8 alpha:1.0];
+        titleLabel.font = [UIFont boldSystemFontOfSize:11];
+        titleLabel.backgroundColor = [UIColor colorWithRed:0.18 green:0.18 blue:0.20 alpha:1.0];
+        titleLabel.layer.cornerRadius = 6;
+        titleLabel.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
+        titleLabel.clipsToBounds = YES;
+        [g_menuView addSubview:titleLabel];
+        
+        // Các nút bấm tính năng bên trong menu
+        CGFloat y = 35;
+        CGFloat h = 32;
+        CGFloat w = 180;
+        CGFloat x = 10;
+        
+        [g_menuView addSubview:create_imgui_toggle(CGRectMake(x, y, w, h), @"MAP", @selector(toggle_map:))]; y += 38;
+        [g_menuView addSubview:create_imgui_toggle(CGRectMake(x, y, w, h), @"CAM XA", @selector(toggle_camxa:))]; y += 38;
+        [g_menuView addSubview:create_imgui_toggle(CGRectMake(x, y, w, h), @"SHOW UNIT", @selector(toggle_showunit:))]; y += 38;
+        [g_menuView addSubview:create_imgui_toggle(CGRectMake(x, y, w, h), @"SHOW LSD", @selector(toggle_showlsd:))]; y += 38;
+        [g_menuView addSubview:create_imgui_toggle(CGRectMake(x, y, w, h), @"ẨN TIA", @selector(toggle_hidetia:))];
+        
+        // Cho phép kéo thả cửa sổ ImGui
+        UIPanGestureRecognizer *menuPan = [[UIPanGestureRecognizer alloc] initWithTarget:nil action:@selector(handle_menu_pan:)];
+        // Thêm gesture kéo menu tại đây nếu muốn
+        [g_menuView addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:nil action:nil]];
+        
+        // Nút thu nhỏ/mở rộng nổi trên màn hình (Floating Button)
+        g_floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        g_floatingButton.frame = CGRectMake(30, 100, 45, 45);
+        g_floatingButton.backgroundColor = [UIColor colorWithRed:0.15 green:0.15 blue:0.16 alpha:0.85];
+        [g_floatingButton setTitle:@"ERI" forState:UIControlStateNormal];
+        [g_floatingButton setTitleColor:[UIColor colorWithRed:0.2 green:0.8 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
+        g_floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:12];
+        g_floatingButton.layer.cornerRadius = 22.5;
+        g_floatingButton.layer.borderWidth = 1.5;
+        g_floatingButton.layer.borderColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.35 alpha:1.0].CGColor;
+        [g_floatingButton addTarget:nil action:@selector(toggle_menu_visibility) forControlEvents:UIControlEventTouchUpInside];
+        
+        // Thêm gesture cho phép kéo di chuyển nút nổi quanh màn hình
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:nil action:@selector(handle_pan:)];
+        [g_floatingButton addGestureRecognizer:pan];
+        
+        [g_overlayWindow addSubview:g_menuView];
+        [g_overlayWindow addSubview:g_floatingButton];
+        
+        // Đặt RootViewController rỗng để window nhận sự kiện chạm xuyên/nổi tốt hơn
+        g_overlayWindow.rootViewController = [UIViewController new];
     });
 }
 
 #pragma mark - Entry
 __attribute__((constructor))
 static void eri_init(void) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"[ERI] 🔥 Đang kích hoạt Antiban vĩnh viễn (3 lớp)...");
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSLog(@"[ERI] 🔥 Đang kích hoạt Antiban vĩnh viễn...");
         apply_antiban_patches();
-        show_all_toggle_buttons();
-        NSLog(@"[ERI] ✅ Đã khởi tạo giao diện bật/tắt các chức năng mod.");
+        setup_imgui_menu();
+        NSLog(@"[ERI] ✅ Đã tải giao diện ImGui thành công.");
     });
 }
