@@ -1,3 +1,6 @@
+# Định nghĩa đường dẫn Theos (thường là /var/mobile/theos hoặc /var/root/theos)
+THEOS ?= /var/mobile/theos
+
 TARGET := iphone:clang:latest:14.0
 ARCHS := arm64
 
