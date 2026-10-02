@@ -2,7 +2,6 @@
 #define FISHHOOK_H
 
 #include <stddef.h>
-#include <mach-o/dyld.h>
 #include <mach-o/loader.h>
 
 #ifdef __cplusplus
