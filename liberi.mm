@@ -44,14 +44,12 @@ struct PatchEntry {
 };
 
 // ==============================================
-// DANH SÁCH PATCH — ĐÚNG FILE + ĐÚNG ĐỊA CHỈ
+// DANH SÁCH PATCH
 // ==============================================
 static const struct PatchEntry g_patches[] = {
-    // ========== FILE: anort (hình 1) ==========
     {"anort",           0x31C4C,    ANORT_FIX,      NULL,       8,      NULL},
     {"anort",           0x4591C,    ANORT_FIX,      NULL,       8,      NULL},
 
-    // ========== FILE: UnityFramework (hình 2) ==========
     {"UnityFramework",  0x706D890,  RET_INST,       NULL,       4,      NULL},
     {"UnityFramework",  0x706D914,  RET_INST,       NULL,       4,      NULL},
     {"UnityFramework",  0x706D9CC,  RET_INST,       NULL,       4,      NULL},
@@ -70,19 +68,14 @@ static const struct PatchEntry g_patches[] = {
     {"UnityFramework",  0x5B65CC,   RET_INST,       NULL,       4,      NULL},
     {"UnityFramework",  0x5B6764,   RET_INST,       NULL,       4,      NULL},
 
-    // 1. Hack Map
     {"UnityFramework",  0x4A38100,  MAP_ON,         MAP_OFF,    4,      &g_Enabled_Map},
-    // 2. Cam Xa 3 Nất
     {"UnityFramework",  0x554B9EC,  CAM_ON,         CAM_OFF,    8,      &g_Enabled_CamXa},
     {"UnityFramework",  0x541142C,  CAM_ON,         CAM_OFF,    12,     &g_Enabled_CamXa},
     {"UnityFramework",  0x550E2BC,  CAM_ON,         CAM_OFF,    12,     &g_Enabled_CamXa},
-    // 3. Show Unti Địch
     {"UnityFramework",  0x5F1C394,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_Unti},
     {"UnityFramework",  0x6A6B798,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_Unti},
     {"UnityFramework",  0x6A6B8FC,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_Unti},
-    // 4. Show Lịch Sử Đấu
     {"UnityFramework",  0x5ADF5A8,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_LichSu},
-    // 5. Ẩn Tia Elsu
     {"UnityFramework",  0x5FBEC8C,  SHOW_OFF,       SHOW_ON,    8,      &g_Enabled_ElsuTia},
 
     {NULL, 0, NULL, NULL, 0, NULL}
@@ -134,7 +127,26 @@ static void update_all_patches(void) {
 }
 
 // ==============================================
-// MENU — ĐÚNG 5 TÊN + NÚT GÓC DƯỚI PHẢI + ĐÃ SỬA LỖI
+// LẤY WINDOW CHÍNH — TƯƠNG THÍCH iOS 13+
+// ==============================================
+static UIWindow *getKeyWindow(void) {
+    UIWindow *keyWindow = nil;
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                keyWindow = scene.windows.firstObject;
+                if (keyWindow) break;
+            }
+        }
+    }
+    if (!keyWindow) {
+        keyWindow = [UIApplication sharedApplication].windows.firstObject;
+    }
+    return keyWindow;
+}
+
+// ==============================================
+// MENU
 // ==============================================
 @interface EriMenuController : UIViewController <UITableViewDelegate, UITableViewDataSource>
 @end
@@ -151,7 +163,6 @@ static void update_all_patches(void) {
     self.view.layer.cornerRadius = 12;
     self.view.frame = CGRectMake(20, 80, 320, 460);
 
-    // Thanh kéo di chuyển
     _dragBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 320, 44)];
     _dragBar.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.95];
     _dragBar.layer.cornerRadius = 12;
@@ -166,7 +177,6 @@ static void update_all_patches(void) {
     title.textAlignment = NSTextAlignmentCenter;
     [_dragBar addSubview:title];
 
-    // Nút thu nhỏ
     UIButton *minBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     minBtn.frame = CGRectMake(280, 8, 32, 32);
     [minBtn setTitle:@"−" forState:UIControlStateNormal];
@@ -175,7 +185,6 @@ static void update_all_patches(void) {
     [minBtn addTarget:self action:@selector(toggleMinimize) forControlEvents:UIControlEventTouchUpInside];
     [_dragBar addSubview:minBtn];
 
-    // 5 Tên chức năng
     _titles = @[
         @"Hack Map",
         @"Cam Xa 3 Nất",
@@ -210,7 +219,6 @@ static void update_all_patches(void) {
         if (!g_toggleBtn) {
             CGFloat w = [UIScreen mainScreen].bounds.size.width;
             CGFloat h = [UIScreen mainScreen].bounds.size.height;
-            // Nút ☰ góc dưới bên phải
             g_toggleBtn = [UIButton buttonWithType:UIButtonTypeCustom];
             g_toggleBtn.frame = CGRectMake(w - 60, h - 120, 50, 50);
             [g_toggleBtn setTitle:@"☰" forState:UIControlStateNormal];
@@ -219,8 +227,10 @@ static void update_all_patches(void) {
             g_toggleBtn.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.85];
             g_toggleBtn.layer.cornerRadius = 10;
             [g_toggleBtn addTarget:self action:@selector(toggleMinimize) forControlEvents:UIControlEventTouchUpInside];
-            [[UIApplication sharedApplication].keyWindow addSubview:g_toggleBtn];
-            [[UIApplication sharedApplication].keyWindow bringSubviewToFront:g_toggleBtn];
+
+            UIWindow *keyWindow = getKeyWindow();
+            [keyWindow addSubview:g_toggleBtn];
+            [keyWindow bringSubviewToFront:g_toggleBtn];
         } else {
             g_toggleBtn.hidden = NO;
         }
@@ -238,7 +248,7 @@ static void update_all_patches(void) {
     static NSString *cid = @"EriCell";
     UITableViewCell *c = [tv dequeueReusableCellWithIdentifier:cid];
     if (!c) {
-        // ✅ ĐÃ SỬA LỖI — DÙNG KIỂU ĐÚNG
+        // ✅ ĐÃ SỬA: dùng kiểu đúng
         c = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cid];
         c.backgroundColor = [UIColor clearColor];
         c.textLabel.textColor = [UIColor whiteColor];
@@ -291,14 +301,12 @@ static void show_menu(void) {
 __attribute__((constructor))
 static void eri_init(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        // Áp dụng antiban + anort ngay
         for (int i = 0; g_patches[i].img; i++) {
             if (!g_patches[i].flag)
                 apply_patch(&g_patches[i], YES);
         }
         NSLog(@"[Eri] Mod By Eri Nguyễn — Loaded OK");
 
-        // Hiện menu
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             show_menu();
         });
