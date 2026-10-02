@@ -1,20 +1,25 @@
-name: Build ERI Antiban
-on: [push, workflow_dispatch]
+name: Build iOS Dylib
+
+on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest # Hoặc macos-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build dylib
+      # 1. Cài đặt Theos và SDK cần thiết từ GitHub
+      - name: Setup Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git ~/theos
+          # Tải iOS SDK cho Theos (nếu cần thiết cho việc biên dịch)
+          git clone https://github.com/theos/sdks.git ~/theos/sdks
+
+      # 2. Thiết lập biến môi trường THEOS
+      - name: Build Dylib
+        env:
+          THEOS: /home/runner/theos
         run: |
           make clean
           make
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: eri.dylib
-          path: eri.dylib
