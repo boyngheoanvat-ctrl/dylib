@@ -1,6 +1,5 @@
 name: Build
 
-# Tự chạy khi đẩy code hoặc bấm nút thủ công
 on:
   push:
     paths:
@@ -9,35 +8,36 @@ on:
       - 'Makefile'
   workflow_dispatch:
 
-# Tối ưu tốc độ
 jobs:
   build:
     name: Build libsupport
-    runs-on: macos-15  # macOS mới nhất → nhanh nhất
-    timeout-minutes: 5  # Giới hạn 5 phút là đủ
+    runs-on: macos-15
+    timeout-minutes: 5
 
     steps:
       - name: ⬇️ Lấy code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1  # Chỉ lấy phiên bản mới → nhanh
+          fetch-depth: 1
 
       - name: ⚡ Cài Make mới + Theos
         run: |
           brew install make
-          echo "PATH=/usr/local/opt/make/libexec/gnubin:\$PATH" >> $GITHUB_ENV
+          echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
           git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
 
       - name: 🔨 Build
+        env:
+          THEOS: $HOME/theos
         run: |
-          export THEOS=$HOME/theos
+          export THEOS
           export THEOS_IGNORE_PARALLEL_BUILDING_NOTICE=yes
-          make clean
-          make -j$(sysctl -n hw.ncpu)  # Dùng TẤT CẢ lõi CPU → cực nhanh
+          gnumake clean
+          gnumake -j$(sysctl -n hw.ncpu)
 
       - name: 📦 Lấy file kết quả
         uses: actions/upload-artifact@v4
         with:
           name: libsupport-dylib
           path: .theos/obj/**/*.dylib
-          retention-days: 7  # Giữ file 7 ngày
+          retention-days: 7
