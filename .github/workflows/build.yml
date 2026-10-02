@@ -11,10 +11,11 @@ jobs:
 
       - name: Setup Theos
         run: |
-          rm -rf ~/theos/sdks
-          if [ ! -d "$HOME/theos" ]; then
-            git clone --recursive https://github.com/theos/theos.git ~/theos
-          fi
+          # Xóa sạch thư mục theos cũ để tránh xung đột dữ liệu
+          rm -rf ~/theos
+          
+          # Clone mới hoàn toàn Theos kèm submodule và SDKs
+          git clone --recursive https://github.com/theos/theos.git ~/theos
           git clone https://github.com/theos/sdks.git ~/theos/sdks
 
       - name: Build Dylib
