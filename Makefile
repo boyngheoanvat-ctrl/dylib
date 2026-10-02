@@ -2,7 +2,6 @@ ARCHS = arm64
 TARGET = iphone:clang:latest:14.0
 THEOS_IGNORE_PARALLEL_BUILDING_NOTICE = yes
 
-# GHI ĐƯỜNG DẪN ĐẦY ĐỦ LUÔN — KHÔNG DÙNG $HOME
 THEOS = /Users/runner/theos
 
 include $(THEOS)/makefiles/common.mk
