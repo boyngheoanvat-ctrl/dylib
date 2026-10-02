@@ -1,7 +1,6 @@
 TARGET := iphone:clang:15.0:14.0
-INSTALL_TARGET_PROCESSES = com.nguyen.game.xxx  # Thay bằng Bundle ID game
+INSTALL_TARGET_PROCESSES = com.garena.game.kgvo
 
-# === Đổi tên output thành libsupport.dylib ===
 LIBRARY_NAME = libsupport
 libsupport_FILES = liberi.mm
 libsupport_CFLAGS = -fobjc-arc
