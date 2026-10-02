@@ -1,7 +1,5 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -36,8 +34,6 @@ bool RawCodePatch(uintptr_t absolute_address, const void* patch_bytes, size_t le
     memcpy((void*)absolute_address, patch_bytes, length);
 
     mprotect((void*)page_start, page_size, PROT_READ | PROT_EXEC);
-    
-    // Đã sửa lỗi bằng cách dùng hàm chuẩn clear cache cho ARM64
     __builtin___clear_cache((char*)absolute_address, (char*)absolute_address + length);
     return true;
 }
@@ -71,12 +67,12 @@ void PatchOffset(uintptr_t base_addr, uint64_t offset, const char* hex_bytes) {
     RawCodePatch(target_addr, bytes, len);
 }
 
-// Hàm chính chạy tự động khi file .dylib được load vào game
-__attribute__((constructor)) void init_ay_mod() {
+// Tiến trình chạy ngầm để không làm nghẽn luồng chính của game (tránh Watchdog Crash)
+void execute_patches() {
     uintptr_t unity_base = 0;
     while (unity_base == 0) {
         unity_base = get_image_slide_address("UnityFramework");
-        usleep(100000); // Đợi module sẵn sàng
+        usleep(200000); // Đợi 0.2 giây mỗi vòng lặp kiểm tra
     }
 
     // 1. Danh sách Antiban - Nhóm 8 bytes (RET_8: 00 00 80 D2 C0 03 5F D6)
@@ -136,22 +132,21 @@ __attribute__((constructor)) void init_ay_mod() {
     }
 
     // 3. Các tính năng trong game
-    // Map
-    PatchOffset(unity_base, 0x4A38100, "36 00 80 D2");
+    PatchOffset(unity_base, 0x4A38100, "36 00 80 D2"); // Map
+    PatchOffset(unity_base, 0x554B9EC, "20 00 80 52 C0 03 5F D6"); // Cam xa 1
+    PatchOffset(unity_base, 0x541142C, "00 00 A8 52 00 00 27 1E C0 03 5F D6"); // Cam xa 2
+    PatchOffset(unity_base, 0x550E2BC, "00 00 A8 52 00 00 27 1E C0 03 5F D6"); // Cam xa 3
+    PatchOffset(unity_base, 0x5F1C394, "20 00 80 52 C0 03 5F D6"); // Show Unit 1
+    PatchOffset(unity_base, 0x6A6B798, "20 00 80 52 C0 03 5F D6"); // Show Unit 2
+    PatchOffset(unity_base, 0x6A6B8FC, "20 00 80 52 C0 03 5F D6"); // Show Unit 3
+    PatchOffset(unity_base, 0x5ADF5A8, "20 00 80 52 C0 03 5F D6"); // Show LSD
+    PatchOffset(unity_base, 0x5FBEC8C, "20 00 80 52 C0 03 5F D6"); // Ẩn tia
+}
 
-    // Cam xa
-    PatchOffset(unity_base, 0x554B9EC, "20 00 80 52 C0 03 5F D6");
-    PatchOffset(unity_base, 0x541142C, "00 00 A8 52 00 00 27 1E C0 03 5F D6");
-    PatchOffset(unity_base, 0x550E2BC, "00 00 A8 52 00 00 27 1E C0 03 5F D6");
-
-    // Show Unit
-    PatchOffset(unity_base, 0x5F1C394, "20 00 80 52 C0 03 5F D6");
-    PatchOffset(unity_base, 0x6A6B798, "20 00 80 52 C0 03 5F D6");
-    PatchOffset(unity_base, 0x6A6B8FC, "20 00 80 52 C0 03 5F D6");
-
-    // Show LSD
-    PatchOffset(unity_base, 0x5ADF5A8, "20 00 80 52 C0 03 5F D6");
-
-    // Ẩn tia
-    PatchOffset(unity_base, 0x5FBEC8C, "20 00 80 52 C0 03 5F D6");
+// Hàm khởi tạo dylib an toàn
+__attribute__((constructor)) void init_ay_mod() {
+    // Trì hoãn 2 giây và đẩy sang luồng nền độc lập để tránh bị hệ thống Watchdog kill ứng dụng
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        execute_patches();
+    });
 }
