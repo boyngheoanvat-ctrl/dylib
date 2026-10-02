@@ -1,3 +1,5 @@
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -34,7 +36,9 @@ bool RawCodePatch(uintptr_t absolute_address, const void* patch_bytes, size_t le
     memcpy((void*)absolute_address, patch_bytes, length);
 
     mprotect((void*)page_start, page_size, PROT_READ | PROT_EXEC);
-    sys_cache_flush((void*)absolute_address, length);
+    
+    // Đã sửa lỗi bằng cách dùng hàm chuẩn clear cache cho ARM64
+    __builtin___clear_cache((char*)absolute_address, (char*)absolute_address + length);
     return true;
 }
 
