@@ -22,7 +22,6 @@ static UIButton *g_floatingButton = nil;
 @implementation ERITouchWindow
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hitView = [super hitTest:point withEvent:event];
-    // Nếu chạm vào chính window trong suốt (không trúng nút hay menu), cho phép game nhận sự kiện chạm
     if (hitView == self) {
         return nil;
     }
@@ -54,7 +53,6 @@ static UIButton *g_floatingButton = nil;
 
 - (void)toggleMenuVisibility:(id)sender {
     g_menuView.hidden = !g_menuView.hidden;
-    // Đưa menu lên trên cùng mỗi khi mở
     if (!g_menuView.hidden) {
         [g_menuView.superview bringSubviewToFront:g_menuView];
     }
@@ -235,8 +233,8 @@ static void apply_antiban_patches(void) {
 #pragma mark - ImGui Style Menu Creation
 static void setup_imgui_menu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Sử dụng lớp ERITouchWindow tùy chỉnh để không chặn cảm ứng của game ở vùng trống
-        g_overlayWindow = [[ERITouchWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+        CGRect screenBounds = [UIScreen mainScreen].bounds;
+        g_overlayWindow = [[ERITouchWindow alloc] initWithFrame:screenBounds];
         g_overlayWindow.windowLevel = UIWindowLevelAlert + 999;
         g_overlayWindow.backgroundColor = [UIColor clearColor];
         g_overlayWindow.hidden = NO;
@@ -247,7 +245,7 @@ static void setup_imgui_menu(void) {
         g_menuView.layer.cornerRadius = 6;
         g_menuView.layer.borderWidth = 1.0;
         g_menuView.layer.borderColor = [UIColor colorWithRed:0.30 green:0.30 blue:0.32 alpha:1.0].CGColor;
-        g_menuView.hidden = YES; // Mặc định ẩn, bấm nút ERI để bật
+        g_menuView.hidden = YES;
         
         // Tiêu đề ImGui Window
         UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 200, 25)];
@@ -276,20 +274,6 @@ static void setup_imgui_menu(void) {
             return btn;
         };
         
-        [g_menuView addSubview:createToggle(@"MAP", @selector(toggleMap:))]; y += 38;
-        [g_menuView addSubview:createToggle(@"CAM XA", @selector(toggleCamXa:))]; y += 38;
-        [g_menuView addSubview:createDialogToggle = [g_menuView addSubview:createToggle(@"SHOW UNIT", @selector(toggleShowUnit:))]; y += 38; // Giữ cú pháp chuẩn bên dưới
-        // [Sửa dòng Show Unit gọn gàng hơn]
-        // Thay vì dòng trên, sử dụng đoạn chuẩn:
-        // (Đoạn này đã được xử lý chuẩn ở các dòng tiếp theo)
-        
-        // Clean tạo lại các nút an toàn:
-        // Xóa sạch subviews cũ nếu có và thêm lại chuẩn xác:
-        for (UIView *sub in [g_menuView subviews]) {
-            if (sub != titleLabel) [sub removeFromSuperview];
-        }
-        
-        y = 35;
         [g_menuView addSubview:createToggle(@"MAP", @selector(toggleMap:))]; y += 38;
         [g_menuView addSubview:createToggle(@"CAM XA", @selector(toggleCamXa:))]; y += 38;
         [g_menuView addSubview:createToggle(@"SHOW UNIT", @selector(toggleShowUnit:))]; y += 38;
