@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: ⚡ Cài Make mới + Theos
+      - name: ⚡ Cài Make + Theos
         run: |
           brew install make
           echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
@@ -30,7 +30,9 @@ jobs:
         env:
           THEOS: $HOME/theos
         run: |
-          export THEOS
+          export THEOS=$HOME/theos
+          echo "THEOS = $THEOS"
+          ls -la $THEOS/makefiles/
           export THEOS_IGNORE_PARALLEL_BUILDING_NOTICE=yes
           gnumake clean
           gnumake -j$(sysctl -n hw.ncpu)
