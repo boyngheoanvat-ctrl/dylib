@@ -1,47 +1,43 @@
-name: Build liberi
+name: Build
 
+# Tự chạy khi đẩy code hoặc bấm nút thủ công
 on:
   push:
-    branches: [ main, master ]
+    paths:
+      - '**.m'
+      - '**.mm'
+      - 'Makefile'
   workflow_dispatch:
 
+# Tối ưu tốc độ
 jobs:
   build:
-    runs-on: macos-latest
+    name: Build libsupport
+    runs-on: macos-15  # macOS mới nhất → nhanh nhất
+    timeout-minutes: 5  # Giới hạn 5 phút là đủ
+
     steps:
-      - name: Checkout code
+      - name: ⬇️ Lấy code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Chỉ lấy phiên bản mới → nhanh
 
-      - name: Set up Theos
+      - name: ⚡ Cài Make mới + Theos
         run: |
-          git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
-          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          brew install make
+          echo "PATH=/usr/local/opt/make/libexec/gnubin:\$PATH" >> $GITHUB_ENV
+          git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
 
-      - name: Install ldid & fix config
-        run: |
-          curl -L "https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_macosx_x86_64" -o $HOME/theos/bin/ldid
-          chmod +x $HOME/theos/bin/ldid
-          mkdir -p $HOME/.theos
-          echo 'TARGET_CODESIGN_FLAGS = -s' >> $HOME/.theosrc
-
-      - name: Update Theos
+      - name: 🔨 Build
         run: |
           export THEOS=$HOME/theos
-          $THEOS/bin/update-theos
-
-      - name: Build project
-        run: |
-          export THEOS=$HOME/theos
+          export THEOS_IGNORE_PARALLEL_BUILDING_NOTICE=yes
           make clean
-          make
+          make -j$(sysctl -n hw.ncpu)  # Dùng TẤT CẢ lõi CPU → cực nhanh
 
-      - name: Tìm file dylib — xem nó ở đâu
-        run: |
-          find .theos -name "liberi.dylib" -type f
-          ls -R .theos/obj/
-
-      - name: Upload dylib — ĐÚNG ĐƯỜNG DẪN
+      - name: 📦 Lấy file kết quả
         uses: actions/upload-artifact@v4
         with:
-          name: liberi.dylib
-          path: .theos/obj/debug/libsupport.dylib
+          name: libsupport-dylib
+          path: .theos/obj/**/*.dylib
+          retention-days: 7  # Giữ file 7 ngày
