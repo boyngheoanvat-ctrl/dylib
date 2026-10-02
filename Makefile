@@ -1,15 +1,4 @@
-# Tự động tìm đường dẫn Theos tùy theo môi trường bạn đang build
-ifeq ($(THEOS),)
-    ifneq ($(wildcard /var/mobile/theos/.),)
-        THEOS := /var/mobile/theos
-    else ifneq ($(wildcard $(HOME)/theos/.),)
-        THEOS := $(HOME)/theos
-    else ifneq ($(wildcard /theos/.),)
-        THEOS := /theos
-    else
-        THEOS := /opt/theos
-    endif
-endif
+THEOS = /home/runner/theos
 
 TARGET := iphone:clang:latest:14.0
 ARCHS := arm64
