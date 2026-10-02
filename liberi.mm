@@ -9,30 +9,28 @@
 // ==============================================
 // BIẾN ĐIỀU KHIỂN
 // ==============================================
-static BOOL g_Enabled_Map        = NO;  // 1. Hack Map
-static BOOL g_Enabled_CamXa      = NO;  // 2. Cam Xa 3 Nất
-static BOOL g_Enabled_Unti       = NO;  // 3. Show Unti Địch
-static BOOL g_Enabled_LichSu     = NO;  // 4. Show Lịch Sử Đấu
-static BOOL g_Enabled_ElsuTia    = NO;  // 5. Ẩn Tia Elsu
+static BOOL g_Enabled_Map        = NO;
+static BOOL g_Enabled_CamXa      = NO;
+static BOOL g_Enabled_Unti       = NO;
+static BOOL g_Enabled_LichSu     = NO;
+static BOOL g_Enabled_ElsuTia    = NO;
+
+static UIWindow *g_menuWindow = nil;
+static UIButton *g_toggleBtn = nil; // Nút thu nhỏ/phóng to
+static BOOL g_menuMinimized = NO;
 
 // ==============================================
-// BYTE PATTERN — ĐÚNG Y XÌ
+// BYTE PATTERN
 // ==============================================
-// === File: anort (hình 1) ===
 static const uint8_t ANORT_FIX[]    = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
-
-// === File: UnityFramework (hình 2) ===
 static const uint8_t RET_INST[]     = {0xC0, 0x03, 0x5F, 0xD6};
 
-// 1. Hack Map
 static const uint8_t MAP_ON[]       = {0x36, 0x00, 0x80, 0xD2};
 static const uint8_t MAP_OFF[]      = {0x00, 0x00, 0x80, 0xD2};
 
-// 2. Cam Xa 3 Nất
 static const uint8_t CAM_ON[]       = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
 static const uint8_t CAM_OFF[]      = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
 
-// 3. Show Unti Địch / 4. Show Lịch Sử Đấu / 5. Ẩn Tia Elsu
 static const uint8_t SHOW_ON[]      = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
 static const uint8_t SHOW_OFF[]     = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
 
@@ -46,14 +44,12 @@ struct PatchEntry {
 };
 
 // ==============================================
-// DANH SÁCH PATCH — ĐÚNG FILE + ĐÚNG ĐỊA CHỈ
+// DANH SÁCH PATCH
 // ==============================================
 static const struct PatchEntry g_patches[] = {
-    // ========== FILE: anort ==========
     {"anort",           0x31C4C,    ANORT_FIX,      NULL,       8,      NULL},
     {"anort",           0x4591C,    ANORT_FIX,      NULL,       8,      NULL},
 
-    // ========== FILE: UnityFramework — Antiban ==========
     {"UnityFramework",  0x706D890,  RET_INST,       NULL,       4,      NULL},
     {"UnityFramework",  0x706D914,  RET_INST,       NULL,       4,      NULL},
     {"UnityFramework",  0x706D9CC,  RET_INST,       NULL,       4,      NULL},
@@ -72,24 +68,14 @@ static const struct PatchEntry g_patches[] = {
     {"UnityFramework",  0x5B65CC,   RET_INST,       NULL,       4,      NULL},
     {"UnityFramework",  0x5B6764,   RET_INST,       NULL,       4,      NULL},
 
-    // ========== 1. Hack Map ==========
     {"UnityFramework",  0x4A38100,  MAP_ON,         MAP_OFF,    4,      &g_Enabled_Map},
-
-    // ========== 2. Cam Xa 3 Nất ==========
     {"UnityFramework",  0x554B9EC,  CAM_ON,         CAM_OFF,    8,      &g_Enabled_CamXa},
     {"UnityFramework",  0x541142C,  CAM_ON,         CAM_OFF,    12,     &g_Enabled_CamXa},
     {"UnityFramework",  0x550E2BC,  CAM_ON,         CAM_OFF,    12,     &g_Enabled_CamXa},
-
-    // ========== 3. Show Unti Địch ==========
     {"UnityFramework",  0x5F1C394,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_Unti},
     {"UnityFramework",  0x6A6B798,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_Unti},
     {"UnityFramework",  0x6A6B8FC,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_Unti},
-
-    // ========== 4. Show Lịch Sử Đấu ==========
     {"UnityFramework",  0x5ADF5A8,  SHOW_ON,        SHOW_OFF,   8,      &g_Enabled_LichSu},
-
-    // ========== 5. Ẩn Tia Elsu ==========
-    // BẬT → Ẩn tia; TẮT → Hiện tia
     {"UnityFramework",  0x5FBEC8C,  SHOW_OFF,       SHOW_ON,    8,      &g_Enabled_ElsuTia},
 
     {NULL, 0, NULL, NULL, 0, NULL}
@@ -100,7 +86,6 @@ static const struct PatchEntry g_patches[] = {
 // ==============================================
 static BOOL patch_memory(void *addr, const void *data, size_t len) {
     if (!addr || !data || len == 0) return NO;
-
     vm_address_t page_start = (vm_address_t)addr & ~(vm_page_size - 1);
     vm_size_t page_end = ((vm_address_t)addr + len + vm_page_size - 1) & ~(vm_page_size - 1);
     vm_size_t page_len = page_end - page_start;
@@ -108,20 +93,15 @@ static BOOL patch_memory(void *addr, const void *data, size_t len) {
     kern_return_t kr = vm_protect(mach_task_self(), page_start, page_len, FALSE,
         VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE);
     if (kr != KERN_SUCCESS) return NO;
-
     memcpy(addr, data, len);
     kr = vm_protect(mach_task_self(), page_start, page_len, FALSE,
         VM_PROT_READ | VM_PROT_EXECUTE);
     return kr == KERN_SUCCESS;
 }
 
-// ==============================================
-// ÁP DỤNG PATCH
-// ==============================================
 static void apply_patch(const struct PatchEntry *entry, BOOL enabled) {
     const struct mach_header *mh = NULL;
     intptr_t slide = 0;
-
     for (uint32_t i = 0; i < _dyld_image_count(); i++) {
         const char *name = _dyld_get_image_name(i);
         if (name && strstr(name, entry->img)) {
@@ -131,36 +111,29 @@ static void apply_patch(const struct PatchEntry *entry, BOOL enabled) {
         }
     }
     if (!mh) return;
-
     void *target_addr = (void *)((uintptr_t)mh + slide + entry->rva);
     const uint8_t *bytes = enabled ? entry->on : entry->off;
     if (!bytes) bytes = entry->on;
-
     patch_memory(target_addr, bytes, entry->len);
 }
 
 static void update_all_patches(void) {
     for (int i = 0; g_patches[i].img; i++) {
-        if (g_patches[i].flag) {
-            apply_patch(&g_patches[i], *g_patches[i].flag);
-        } else {
-            apply_patch(&g_patches[i], YES);
-        }
+        if (g_patches[i].flag) apply_patch(&g_patches[i], *g_patches[i].flag);
+        else apply_patch(&g_patches[i], YES);
     }
 }
 
 // ==============================================
-// MENU — ĐÚNG 5 TÊN CHỨC NĂNG
+// MENU + NÚT THU NHỎ GÓC DƯỚI PHẢI
 // ==============================================
-static UIWindow *g_menuWindow = nil;
-
 @interface EriMenuController : UIViewController <UITableViewDelegate, UITableViewDataSource>
 @end
 
 @implementation EriMenuController {
     NSArray *_titles;
     UIView *_dragBar;
-    UIButton *_showBtn;
+    CGPoint _startOffset;
 }
 
 - (void)viewDidLoad {
@@ -169,7 +142,7 @@ static UIWindow *g_menuWindow = nil;
     self.view.layer.cornerRadius = 12;
     self.view.frame = CGRectMake(20, 80, 320, 460);
 
-    // Thanh kéo di chuyển
+    // Thanh kéo
     _dragBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 320, 44)];
     _dragBar.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.95];
     _dragBar.layer.cornerRadius = 12;
@@ -184,36 +157,17 @@ static UIWindow *g_menuWindow = nil;
     title.textAlignment = NSTextAlignmentCenter;
     [_dragBar addSubview:title];
 
-    // Nút đóng
-    UIButton *closeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    closeBtn.frame = CGRectMake(280, 8, 32, 32);
-    [closeBtn setTitle:@"✕" forState:UIControlStateNormal];
-    [closeBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    closeBtn.titleLabel.font = [UIFont boldSystemFontOfSize:18];
-    [closeBtn addTarget:self action:@selector(hideMenu) forControlEvents:UIControlEventTouchUpInside];
-    [_dragBar addSubview:closeBtn];
+    // Nút thu nhỏ/phóng to ngay góc dưới phải
+    UIButton *minBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    minBtn.frame = CGRectMake(280, 8, 32, 32);
+    [minBtn setTitle:@"−" forState:UIControlStateNormal];
+    [minBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    minBtn.titleLabel.font = [UIFont boldSystemFontOfSize:20];
+    [minBtn addTarget:self action:@selector(toggleMinimize) forControlEvents:UIControlEventTouchUpInside];
+    [_dragBar addSubview:minBtn];
 
-    // Nút hiện lại
-    _showBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-    _showBtn.frame = CGRectMake(10, 300, 48, 48);
-    [_showBtn setTitle:@"☰" forState:UIControlStateNormal];
-    [_showBtn setTitleColor:[UIColor greenColor] forState:UIControlStateNormal];
-    _showBtn.titleLabel.font = [UIFont boldSystemFontOfSize:26];
-    _showBtn.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.85];
-    _showBtn.layer.cornerRadius = 10;
-    _showBtn.hidden = YES;
-    [_showBtn addTarget:self action:@selector(showMenu) forControlEvents:UIControlEventTouchUpInside];
-    [[UIApplication sharedApplication].keyWindow addSubview:_showBtn];
-    [[UIApplication sharedApplication].keyWindow bringSubviewToFront:_showBtn];
-
-    // === 5 TÊN ĐÚNG Y YÊU CẦU ===
-    _titles = @[
-        @"Hack Map",
-        @"Cam Xa 3 Nất",
-        @"Show Unti Địch",
-        @"Show Lịch Sử Đấu",
-        @"Ẩn Tia Elsu"
-    ];
+    // 5 Tên chức năng
+    _titles = @[@"Hack Map", @"Cam Xa 3 Nất", @"Show Unti Địch", @"Show Lịch Sử Đấu", @"Ẩn Tia Elsu"];
 
     UITableView *table = [[UITableView alloc] initWithFrame:CGRectMake(10, 50, 300, 400) style:UITableViewStylePlain];
     table.delegate = self;
@@ -224,76 +178,85 @@ static UIWindow *g_menuWindow = nil;
     [self.view addSubview:table];
 }
 
-- (void)handlePan:(UIPanGestureRecognizer *)gesture {
-    UIView *menuView = self.view;
-    static CGPoint offset;
-    if (gesture.state == UIGestureRecognizerStateBegan) {
-        CGPoint loc = [gesture locationInView:_dragBar];
-        offset = CGPointMake(loc.x - 160, loc.y - 22);
-    } else if (gesture.state == UIGestureRecognizerStateChanged) {
-        CGPoint loc = [gesture locationInView:nil];
-        menuView.center = CGPointMake(loc.x - offset.x, loc.y - offset.y);
+- (void)handlePan:(UIPanGestureRecognizer *)g {
+    if (g.state == UIGestureRecognizerStateBegan) {
+        CGPoint loc = [g locationInView:_dragBar];
+        _startOffset = CGPointMake(loc.x - 160, loc.y - 22);
+    } else if (g.state == UIGestureRecognizerStateChanged) {
+        CGPoint loc = [g locationInView:nil];
+        self.view.center = CGPointMake(loc.x - _startOffset.x, loc.y - _startOffset.y);
     }
 }
 
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return _titles.count;
+- (void)toggleMinimize {
+    g_menuMinimized = !g_menuMinimized;
+    if (g_menuMinimized) {
+        // Thu nhỏ → chỉ hiện nút tròn góc dưới phải
+        self.view.hidden = YES;
+        if (!g_toggleBtn) {
+            CGFloat w = [UIScreen mainScreen].bounds.size.width;
+            CGFloat h = [UIScreen mainScreen].bounds.size.height;
+            // ✅ Nằm đúng góc dưới phải như bạn khoanh
+            g_toggleBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+            g_toggleBtn.frame = CGRectMake(w - 60, h - 120, 50, 50);
+            [g_toggleBtn setTitle:@"☰" forState:UIControlStateNormal];
+            [g_toggleBtn setTitleColor:[UIColor greenColor] forState:UIControlStateNormal];
+            g_toggleBtn.titleLabel.font = [UIFont boldSystemFontOfSize:24];
+            g_toggleBtn.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.85];
+            g_toggleBtn.layer.cornerRadius = 10;
+            [g_toggleBtn addTarget:self action:@selector(toggleMinimize) forControlEvents:UIControlEventTouchUpInside];
+            [[UIApplication sharedApplication].keyWindow addSubview:g_toggleBtn];
+            [[UIApplication sharedApplication].keyWindow bringSubviewToFront:g_toggleBtn];
+        } else {
+            g_toggleBtn.hidden = NO;
+        }
+    } else {
+        // Phóng to → hiện menu đầy
+        if (g_toggleBtn) g_toggleBtn.hidden = YES;
+        self.view.hidden = NO;
+    }
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)sec { return _titles.count; }
+
+- (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip {
     static NSString *cid = @"EriCell";
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cid];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cid];
-        cell.backgroundColor = [UIColor clearColor];
-        cell.textLabel.textColor = [UIColor whiteColor];
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-
+    UITableViewCell *c = [tv dequeueReusableCellWithIdentifier:cid];
+    if (!c) {
+        c = [[UITableViewCell alloc] initWithStyle:0 reuseIdentifier:cid];
+        c.backgroundColor = [UIColor clearColor];
+        c.textLabel.textColor = [UIColor whiteColor];
+        c.selectionStyle = UITableViewCellSelectionStyleNone;
         UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(240, 6, 50, 30)];
-        sw.tag = indexPath.row;
+        sw.tag = ip.row;
         [sw addTarget:self action:@selector(toggleSwitch:) forControlEvents:UIControlEventValueChanged];
-        cell.accessoryView = sw;
+        c.accessoryView = sw;
     }
-    cell.textLabel.text = _titles[indexPath.row];
-
-    UISwitch *sw = (UISwitch *)cell.accessoryView;
-    switch (indexPath.row) {
-        case 0: sw.on = g_Enabled_Map;        break;
-        case 1: sw.on = g_Enabled_CamXa;      break;
-        case 2: sw.on = g_Enabled_Unti;       break;
-        case 3: sw.on = g_Enabled_LichSu;     break;
-        case 4: sw.on = g_Enabled_ElsuTia;    break;
+    c.textLabel.text = _titles[ip.row];
+    UISwitch *sw = (UISwitch *)c.accessoryView;
+    switch (ip.row) {
+        case 0: sw.on = g_Enabled_Map; break;
+        case 1: sw.on = g_Enabled_CamXa; break;
+        case 2: sw.on = g_Enabled_Unti; break;
+        case 3: sw.on = g_Enabled_LichSu; break;
+        case 4: sw.on = g_Enabled_ElsuTia; break;
     }
-    return cell;
+    return c;
 }
 
 - (void)toggleSwitch:(UISwitch *)sw {
     switch (sw.tag) {
-        case 0: g_Enabled_Map        = sw.on; break;
-        case 1: g_Enabled_CamXa      = sw.on; break;
-        case 2: g_Enabled_Unti       = sw.on; break;
-        case 3: g_Enabled_LichSu     = sw.on; break;
-        case 4: g_Enabled_ElsuTia    = sw.on; break;
+        case 0: g_Enabled_Map = sw.on; break;
+        case 1: g_Enabled_CamXa = sw.on; break;
+        case 2: g_Enabled_Unti = sw.on; break;
+        case 3: g_Enabled_LichSu = sw.on; break;
+        case 4: g_Enabled_ElsuTia = sw.on; break;
     }
     update_all_patches();
 }
 
-- (void)hideMenu {
-    g_menuWindow.hidden = YES;
-    _showBtn.hidden = NO;
-}
-
-- (void)showMenu {
-    _showBtn.hidden = YES;
-    g_menuWindow.hidden = NO;
-    [g_menuWindow makeKeyAndVisible];
-}
-
 @end
 
-// ==============================================
-// HIỂN THỊ MENU
-// ==============================================
 static void show_menu(void) {
     if (g_menuWindow) return;
     g_menuWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
@@ -303,22 +266,14 @@ static void show_menu(void) {
     [g_menuWindow makeKeyAndVisible];
 }
 
-// ==============================================
-// KHỞI TẠO
-// ==============================================
 __attribute__((constructor))
 static void eri_init(void) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        // Áp dụng antiban + anort ngay
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         for (int i = 0; g_patches[i].img; i++) {
-            if (!g_patches[i].flag) {
-                apply_patch(&g_patches[i], YES);
-            }
+            if (!g_patches[i].flag) apply_patch(&g_patches[i], YES);
         }
         NSLog(@"[Eri] Mod By Eri Nguyễn — Loaded OK");
-
-        // Hiện menu
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             show_menu();
         });
     });
