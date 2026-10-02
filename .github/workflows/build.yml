@@ -12,16 +12,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Theos & tools
+      - name: Set up Theos & ldid
         run: |
           # Cài Theos
           git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
           
-          # Cài ldid — công cụ ký
-          git clone --depth 1 https://github.com/kevinbrook/ldid.git $HOME/ldid
-          cd $HOME/ldid && make install PREFIX=$HOME
-          echo "$HOME/bin" >> $GITHUB_PATH
+          # Tải ldid đã biên dịch sẵn — nhanh & không cần đăng nhập
+          curl -L "https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus1/ldid-macos-universal" -o $HOME/ldid
+          chmod +x $HOME/ldid
+          echo "$HOME" >> $GITHUB_PATH
 
       - name: Update Theos
         run: |
@@ -31,7 +31,7 @@ jobs:
       - name: Build project
         run: |
           export THEOS=$HOME/theos
-          export PATH="$HOME/bin:$PATH"
+          export PATH="$HOME:$PATH"
           make clean
           make
 
