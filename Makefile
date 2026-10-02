@@ -1,24 +1,37 @@
 # ==============================================
-# Mod By Eri Nguyễn
-# Game: Liên Quân Mobile
-# Ver: 1.64.11768577
-# Bundle ID: com.garena.game.kgvo
-# Output: libsupport.dylib
+# MOD BY ERI NGUYỄN — Makefile Hoàn Chỉnh
 # ==============================================
 
+# Kiến trúc — iPhone 6s trở lên đều dùng arm64/arm64e
 ARCHS = arm64 arm64e
-TARGET = iphone:clang:latest:14.0
 
-INSTALL_TARGET_PROCESSES = com.garena.game.kgvo
+# Mục tiêu biên dịch: SDK mới nhất, hỗ trợ iOS 13.0 trở lên
+TARGET = iphone:clang:latest:13.0
 
-LIBRARY_NAME = libsupport
-libsupport_FILES = liberi.mm fishhook.c
-libsupport_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-function
-libsupport_FRAMEWORKS = UIKit Foundation
-libsupport_LIBRARIES =
+# Bỏ qua thông báo build chậm
+THEOS_IGNORE_PARALLEL_BUILDING_NOTICE = yes
 
-THEOS_DEVICE_IP = 127.0.0.1
-THEOS_DEVICE_PORT = 2222
+# Đường dẫn Theos — tự động lấy
+THEOS ?= $(HOME)/theos
 
 include $(THEOS)/makefiles/common.mk
-include $(THEOS)/makefiles/library.mk
+
+# Tên thư viện đầu ra: libsupport.dylib
+LIBRARY_NAME = libsupport
+
+# File nguồn cần biên dịch
+libsupport_FILES = liberi.mm
+
+# Cờ biên dịch
+libsupport_CFLAGS = -fobjc-arc -std=c++17 -fvisibility=hidden
+
+# Framework cần liên kết
+libsupport_FRAMEWORKS = UIKit Foundation
+
+# Thư viện cần liên kết
+libsupport_LIBRARIES = fishhook
+
+# Loại liên kết: thư viện động
+libsupport_LINKAGE_TYPE = dynamic
+
+include $(THEOS_MAKE_PATH)/library.mk
