@@ -4,21 +4,29 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: macos-latest # Sử dụng macOS để có sẵn toolchain và SDK chính hãng
+    runs-on: macos-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Theos
+      - name: Setup Dependencies & Theos
         run: |
+          # Cài đặt ldid để ký file dylib iOS
+          brew install ldid
+
+          # Xóa sạch thư mục theos cũ tránh xung đột
           rm -rf ~/theos
+          
+          # Clone Theos kèm submodule
           git clone --recursive https://github.com/theos/theos.git ~/theos
+          
+          # Cài đặt iOS SDKs
           rm -rf ~/theos/sdks
           git clone --depth 1 https://github.com/theos/sdks.git ~/theos/sdks
 
       - name: Build Dylib
         env:
-          THEOS: /Users/runner/theos # Đường dẫn Home trên macOS
+          THEOS: /Users/runner/theos
         run: |
           make clean
           make
