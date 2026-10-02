@@ -15,24 +15,25 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: ⬇️ Lấy code
+      - name: ⬇️ Lấy code dự án
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: ⚡ Cài Make + Theos
+      - name: ⚡ Cài Make + Theos ĐẦY ĐỦ
         run: |
           brew install make
           echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
-          git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
+          # Clone Theos bao gồm cả submodule/vendor
+          git clone --recursive https://github.com/theos/theos.git $HOME/theos
+          # Cập nhật nếu cần
+          $HOME/theos/bin/update-theos
 
       - name: 🔨 Build
         env:
           THEOS: $HOME/theos
         run: |
           export THEOS=$HOME/theos
-          echo "THEOS = $THEOS"
-          ls -la $THEOS/makefiles/
           export THEOS_IGNORE_PARALLEL_BUILDING_NOTICE=yes
           gnumake clean
           gnumake -j$(sysctl -n hw.ncpu)
