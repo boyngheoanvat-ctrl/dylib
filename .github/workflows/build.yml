@@ -4,38 +4,21 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest # Sử dụng macOS để có sẵn toolchain và SDK chính hãng
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Theos & Toolchain
+      - name: Setup Theos
         run: |
-          # Xóa sạch thư mục theos cũ
           rm -rf ~/theos
-          
-          # Clone Theos
           git clone --recursive https://github.com/theos/theos.git ~/theos
-          
-          # Cài đặt iOS SDKs
           rm -rf ~/theos/sdks
           git clone --depth 1 https://github.com/theos/sdks.git ~/theos/sdks
-          
-          # Tải và cài đặt toolchain cho Linux để biên dịch arm64
-          curl -LO https://github.com/theos/itheos/releases/download/v1.0/toolchain-linux.tar.gz || true
-          # Hoặc sử dụng script setup-theos chính thức của Theos nếu có, 
-          # Hoặc cấu hình tải toolchain trực tiếp từ kho pre-built của Theos:
-          
-      - name: Install Theos Toolchain (Linux Fix)
-        run: |
-          # Theos cung cấp script để tự động tải toolchain cần thiết trên Linux
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos-linux.sh)" || true
-          # Đảm bảo thư mục toolchain tồn tại
-          mkdir -p ~/theos/toolchain/linux/iphone/bin
-          
+
       - name: Build Dylib
         env:
-          THEOS: /home/runner/theos
+          THEOS: /Users/runner/theos # Đường dẫn Home trên macOS
         run: |
           make clean
           make
