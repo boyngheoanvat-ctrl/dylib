@@ -1,11 +1,9 @@
-ARCHS = arm64
-TARGET = iphone:clang:latest:14.0
+TARGET := iphone:clang:15.0:14.0
+INSTALL_TARGET_PROCESSES = com.nguyen.game.xxx  # Thay bằng Bundle ID game
 
-include $(THEOS)/makefiles/common.mk
-
-TWEAK_NAME = liberi
-
-liberi_FILES = liberi.mm fishhook.c
-liberi_CXXFLAGS = -fobjc-arc -std=c++17 -w
-
-include $(THEOS_MAKE_PATH)/tweak.mk
+# === Đổi tên output thành libsupport.dylib ===
+LIBRARY_NAME = libsupport
+libsupport_FILES = liberi.mm
+libsupport_CFLAGS = -fobjc-arc
+libsupport_FRAMEWORKS = UIKit Foundation
+libsupport_LIBRARIES = objc fishhook
