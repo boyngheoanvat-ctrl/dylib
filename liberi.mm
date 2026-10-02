@@ -13,8 +13,6 @@
 static int  retZero(void)           { return 0; }
 static int  retOne(void)            { return 1; }
 static void retEmpty(void)          { }
-static void setTrue(void)           { /* trả về true */ }
-static void setFalse(void)          { /* trả về false */ }
 
 // ==============================================
 // BIẾN ĐIỀU KHIỂN MENU
@@ -24,6 +22,23 @@ static BOOL g_Enabled_CamXa      = NO;
 static BOOL g_Enabled_Unti       = NO;
 static BOOL g_Enabled_LSD        = NO;
 static BOOL g_Enabled_HideRay    = NO;
+
+// ==============================================
+// LẤY WINDOW — TƯƠNG THÍCH MỌI iOS
+// ==============================================
+static UIWindow* GetKeyWindow(void) {
+    UIApplication *app = [UIApplication sharedApplication];
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *scene in app.connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow *w in scene.windows) {
+                    if (w.isKeyWindow) return w;
+                }
+            }
+        }
+    }
+    return app.keyWindow;
+}
 
 // ==============================================
 // MENU OVERLAY
@@ -91,7 +106,8 @@ static LiberiMenu *g_menu = nil;
 
 static void ShowMenu(void) {
     if (g_menu) return;
-    UIWindow *w = [UIApplication sharedApplication].keyWindow;
+    UIWindow *w = GetKeyWindow();
+    if (!w) return;
     g_menu = [[LiberiMenu alloc] init];
     g_menu.view.alpha = 0;
     [w addSubview:g_menu.view];
@@ -113,15 +129,12 @@ static BOOL PatchRVA(const char *imageName, uintptr_t rva, const void *bytes, si
         uintptr_t base = (uintptr_t)hdr + _dyld_get_image_vmaddr_slide(i);
         uintptr_t addr = base + rva;
         
-        // Bảo vệ trang ghi được
         uintptr_t page = addr & ~(PAGE_SIZE - 1);
         size_t plen = (addr + len - page + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
         if (mprotect((void*)page, plen, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
             return NO;
         
         memcpy((void*)addr, bytes, len);
-        
-        // Khôi phục quyền thực thi
         mprotect((void*)page, plen, PROT_READ | PROT_EXEC);
         __builtin___clear_cache((void*)addr, (void*)(addr + len));
         return YES;
@@ -132,11 +145,10 @@ static BOOL PatchRVA(const char *imageName, uintptr_t rva, const void *bytes, si
 // ==============================================
 // DỮ LIỆU PATCH
 // ==============================================
-// Antiban — luôn áp dụng
-static const uint8_t PATCH_RET[]       = {0xC0, 0x03, 0x5F, 0xD6};      // ret
-static const uint8_t PATCH_DISABLE[]   = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6}; // movz #0; ret
-static const uint8_t PATCH_MAP[]       = {0x36, 0x00, 0x80, 0xD2};      // movz #0x1B, x0
-static const uint8_t PATCH_BOOL_RET[]  = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6}; // mov w0, #1; ret
+static const uint8_t PATCH_RET[]       = {0xC0, 0x03, 0x5F, 0xD6};
+static const uint8_t PATCH_DISABLE[]   = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
+static const uint8_t PATCH_MAP[]       = {0x36, 0x00, 0x80, 0xD2};
+static const uint8_t PATCH_BOOL_RET[]  = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
 static const uint8_t PATCH_CAM1[]      = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
 static const uint8_t PATCH_CAM2[]      = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
 
@@ -145,7 +157,7 @@ struct AutoPatch {
     uintptr_t rva;
     const uint8_t *data;
     size_t len;
-    BOOL *toggle; // NULL = luôn bật
+    BOOL *toggle;
 };
 
 static const struct AutoPatch g_patches[] = {
@@ -183,21 +195,19 @@ static const struct AutoPatch g_patches[] = {
     {"UnityFramework", 0x5ADF5A8, PATCH_BOOL_RET,  sizeof(PATCH_BOOL_RET),  &g_Enabled_LSD},
     {"UnityFramework", 0x5FBEC8C, PATCH_BOOL_RET,  sizeof(PATCH_BOOL_RET),  &g_Enabled_HideRay},
     
-    {NULL, 0, NULL, 0, NULL} // Kết thúc
+    {NULL, 0, NULL, 0, NULL}
 };
 
 // ==============================================
 // QUÉT & ÁP DỤNG PATCH
 // ==============================================
 static void ApplyPatches(void) {
-    // Bước 1: Patch luôn bật
     for (int i = 0; g_patches[i].img; i++) {
         if (!g_patches[i].toggle) {
             PatchRVA(g_patches[i].img, g_patches[i].rva,
                      g_patches[i].data, g_patches[i].len);
         }
     }
-    // Bước 2: Theo dõi toggle — cập nhật khi thay đổi
     dispatch_async(dispatch_get_main_queue(), ^{
         [NSTimer scheduledTimerWithTimeInterval:0.3 repeats:YES block:^(NSTimer *t){
             for (int i = 0; g_patches[i].img; i++) {
@@ -206,7 +216,6 @@ static void ApplyPatches(void) {
                     PatchRVA(g_patches[i].img, g_patches[i].rva,
                              g_patches[i].data, g_patches[i].len);
                 }
-                // Tắt → không khôi phục gốc (cần lưu gốc nếu muốn hoàn nguyên)
             }
         }];
     });
@@ -230,21 +239,17 @@ static int hk_access(const char *p, int m) {
 __attribute__((constructor(101)))
 static void AutoStart(void) {
     @autoreleasepool {
-        // Xóa dấu vết môi trường
         unsetenv("DYLD_INSERT_LIBRARIES");
         unsetenv("DYLD_LIBRARY_PATH");
         unsetenv("DYLD_FALLBACK_LIBRARY_PATH");
         
-        // Ẩn file
         struct rebinding sysHooks[] = {
             {"access", (void*)hk_access, (void**)&orig_access},
         };
         rebind_symbols(sysHooks, 1);
         
-        // Đợi framework nạp xong rồi patch
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             ApplyPatches();
-            // Hiện menu sau 2s
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 ShowMenu();
             });
