@@ -5,7 +5,7 @@
 #import <mach-o/loader.h>
 #import <mach-o/nlist.h>
 #import <string.h>
-#import <libkern/OSCacheControl.h>  // === THÊM FILE ĐẦU ===
+#import <libkern/OSCacheControl.h>
 #import "fishhook.h"
 
 // === TẮT CẢNH BÁO ===
@@ -14,13 +14,18 @@
 #pragma clang diagnostic ignored "-Wunused-function"
 
 // ==============================================
-// BIẾN ĐIỀU KHIỂN MENU
+// BIẾN TOÀN CỤC
 // ==============================================
 static BOOL g_Enabled_Map        = NO;
 static BOOL g_Enabled_CamXa      = NO;
 static BOOL g_Enabled_Unti       = NO;
 static BOOL g_Enabled_LSD        = NO;
 static BOOL g_Enabled_HideRay    = NO;
+
+static UIView *g_menuView = nil;
+static UIButton *g_toggleBtn = nil;
+static BOOL g_menuVisible = YES;
+static CGPoint g_touchStartPos;
 
 // ==============================================
 // LẤY WINDOW — TƯƠNG THÍCH MỌI iOS
@@ -40,83 +45,183 @@ static UIWindow* GetKeyWindow(void) {
 }
 
 // ==============================================
-// MENU OVERLAY
+// MENU — HỖ TRỢ KÉO DI CHUYỂN + KHÔNG CHẶN GAME
 // ==============================================
-@interface LiberiMenu : UIViewController
+@interface LiberiMenuView : UIView
 @property (nonatomic, strong) UIStackView *stack;
 @end
 
-@implementation LiberiMenu
+@implementation LiberiMenuView
 
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.9];
-    self.view.layer.cornerRadius = 12;
-    self.view.frame = CGRectMake(10, 100, 260, 340);
-    
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 240, 30)];
-    title.text = @"🔥 Liberi Control";
-    title.textColor = [UIColor whiteColor];
-    title.font = [UIFont boldSystemFontOfSize:18];
-    title.textAlignment = NSTextAlignmentCenter;
-    [self.view addSubview:title];
-    
-    self.stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 50, 240, 280)];
-    self.stack.axis = UILayoutConstraintAxisVertical;
-    self.stack.spacing = 12;
-    [self.view addSubview:self.stack];
-    
-    [self addSwitch:@"Map"           value:&g_Enabled_Map];
-    [self addSwitch:@"Cam Xa"        value:&g_Enabled_CamXa];
-    [self addSwitch:@"Show Unti"     value:&g_Enabled_Unti];
-    [self addSwitch:@"Show LSD"      value:&g_Enabled_LSD];
-    [self addSwitch:@"Ẩn Tia"        value:&g_Enabled_HideRay];
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        [self setupUI];
+        [self setupDragGesture];
+    }
+    return self;
 }
 
-- (void)addSwitch:(NSString*)title value:(BOOL*)value {
-    UIView *row = [[UIView alloc] init];
+// === Truyền sự kiện xuống vùng trống → không chặn bấm game ===
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    for (UIView *subview in self.subviews) {
+        if (CGRectContainsPoint(subview.frame, point)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (void)setupUI {
+    self.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.92];
+    self.layer.cornerRadius = 14;
+    self.layer.borderWidth = 1;
+    self.layer.borderColor = [UIColor colorWithWhite:0.3 alpha:1].CGColor;
+    
+    // Tiêu đề
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(15, 12, 230, 32)];
+    title.text = @"🔥 Liberi Control";
+    title.textColor = [UIColor whiteColor];
+    title.font = [UIFont boldSystemFontOfSize:19];
+    title.textAlignment = NSTextAlignmentCenter;
+    [self addSubview:title];
+    
+    // Nút ẩn/hiện tích hợp vào góc tiêu đề
+    UIButton *hideBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    hideBtn.frame = CGRectMake(225, 10, 30, 30);
+    [hideBtn setTitle:@"−" forState:UIControlStateNormal];
+    [hideBtn setTitleColor:[UIColor lightGrayColor] forState:UIControlStateNormal];
+    hideBtn.titleLabel.font = [UIFont boldSystemFontOfSize:20];
+    hideBtn.tag = 99;
+    [hideBtn addTarget:self action:@selector(onHideTap) forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:hideBtn];
+    
+    // Nút hiện nhỏ (ẩn ban đầu)
+    UIButton *showBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    showBtn.frame = CGRectMake(10, 100, 44, 44);
+    [showBtn setTitle:@"🔥" forState:UIControlStateNormal];
+    showBtn.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.95];
+    showBtn.layer.cornerRadius = 10;
+    showBtn.tag = 98;
+    showBtn.alpha = 0;
+    showBtn.hidden = YES;
+    [showBtn addTarget:self action:@selector(onShowTap) forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:showBtn];
+    
+    // Khối công tắc
+    self.stack = [[UIStackView alloc] initWithFrame:CGRectMake(15, 52, 230, 280)];
+    self.stack.axis = UILayoutConstraintAxisVertical;
+    self.stack.spacing = 14;
+    [self addSubview:self.stack];
+    
+    [self addSwitchRow:@"Bản đồ toàn cảnh"   value:&g_Enabled_Map        sel:@selector(onMap:)];
+    [self addSwitchRow:@"Tầm nhìn xa"        value:&g_Enabled_CamXa      sel:@selector(onCamXa:)];
+    [self addSwitchRow:@"Hiện kẻ địch"       value:&g_Enabled_Unti       sel:@selector(onUnti:)];
+    [self addSwitchRow:@"Hiện tầm bắn"       value:&g_Enabled_LSD        sel:@selector(onLSD:)];
+    [self addSwitchRow:@"Ẩn tia chỉ đường"   value:&g_Enabled_HideRay    sel:@selector(onHideRay:)];
+}
+
+- (void)setupDragGesture {
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+    pan.minimumNumberOfTouches = 1;
+    [self addGestureRecognizer:pan];
+}
+
+- (void)handlePan:(UIPanGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        g_touchStartPos = [gesture locationInView:self];
+    } else if (gesture.state == UIGestureRecognizerStateChanged) {
+        CGPoint now = [gesture locationInView:self];
+        CGFloat dx = now.x - g_touchStartPos.x;
+        CGFloat dy = now.y - g_touchStartPos.y;
+        self.center = CGPointMake(self.center.x + dx, self.center.y + dy);
+    }
+}
+
+- (void)addSwitchRow:(NSString*)title value:(BOOL*)value sel:(SEL)sel {
+    UIView *row = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 230, 44)];
+    
     UILabel *lbl = [[UILabel alloc] init];
     lbl.text = title;
     lbl.textColor = [UIColor whiteColor];
     lbl.font = [UIFont systemFontOfSize:15];
+    lbl.translatesAutoresizingMaskIntoConstraints = NO;
+    
     UISwitch *sw = [[UISwitch alloc] init];
     sw.on = *value;
-    [sw addAction:[UIAction actionWithHandler:^(UIAction *act){
-        *value = ((UISwitch*)act.sender).isOn;
-    }] forControlEvents:UIControlEventValueChanged];
+    sw.translatesAutoresizingMaskIntoConstraints = NO;
+    [sw addTarget:self action:sel forControlEvents:UIControlEventValueChanged];
     
     [row addSubview:lbl];
     [row addSubview:sw];
-    lbl.translatesAutoresizingMaskIntoConstraints = NO;
-    sw.translatesAutoresizingMaskIntoConstraints = NO;
+    
     [NSLayoutConstraint activateConstraints:@[
-        [lbl.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:0],
+        [lbl.leadingAnchor constraintEqualToAnchor:row.leadingAnchor],
         [lbl.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
-        [sw.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:0],
+        [sw.trailingAnchor constraintEqualToAnchor:row.trailingAnchor],
         [sw.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
-        [row.heightAnchor constraintEqualToConstant:40]
     ]];
+    
     [self.stack addArrangedSubview:row];
 }
 
+// === Nút ẩn/hiện ===
+- (void)onHideTap {
+    g_menuVisible = NO;
+    UIButton *showBtn = [self viewWithTag:98];
+    UIButton *hideBtn = [self viewWithTag:99];
+    showBtn.hidden = NO;
+    [UIView animateWithDuration:0.25 animations:^{
+        self.alpha = 0;
+        hideBtn.alpha = 0;
+        showBtn.alpha = 1;
+    }];
+}
+
+- (void)onShowTap {
+    g_menuVisible = YES;
+    UIButton *showBtn = [self viewWithTag:98];
+    UIButton *hideBtn = [self viewWithTag:99];
+    [UIView animateWithDuration:0.25 animations:^{
+        self.alpha = 1;
+        hideBtn.alpha = 1;
+        showBtn.alpha = 0;
+    } completion:^(BOOL f) {
+        showBtn.hidden = YES;
+    }];
+}
+
+// === Xử lý bật/tắt ===
+- (void)onMap:(UISwitch*)sender     { g_Enabled_Map     = sender.on; }
+- (void)onCamXa:(UISwitch*)sender   { g_Enabled_CamXa   = sender.on; }
+- (void)onUnti:(UISwitch*)sender    { g_Enabled_Unti    = sender.on; }
+- (void)onLSD:(UISwitch*)sender     { g_Enabled_LSD     = sender.on; }
+- (void)onHideRay:(UISwitch*)sender { g_Enabled_HideRay = sender.on; }
+
 @end
 
-static LiberiMenu *g_menu = nil;
-
+// ==============================================
+// HIỂN THỊ MENU
+// ==============================================
 static void ShowMenu(void) {
-    if (g_menu) return;
+    if (g_menuView) return;
     UIWindow *w = GetKeyWindow();
     if (!w) return;
-    g_menu = [[LiberiMenu alloc] init];
-    g_menu.view.alpha = 0;
-    [w addSubview:g_menu.view];
-    [UIView animateWithDuration:0.3 animations:^{ g_menu.view.alpha = 1; }];
+    
+    g_menuView = [[LiberiMenuView alloc] initWithFrame:CGRectMake(10, 120, 260, 350)];
+    g_menuView.alpha = 0;
+    g_menuView.layer.zPosition = 999;
+    [w addSubview:g_menuView];
+    
+    [UIView animateWithDuration:0.3 animations:^{
+        g_menuView.alpha = 1;
+    }];
 }
 
 #pragma clang diagnostic pop
 
 // ==============================================
-// PATCH BYTE — SỬA DỌNG XÓA BỘ NHỚ
+// PATCH BYTE
 // ==============================================
 #include <sys/mman.h>
 
@@ -136,12 +241,8 @@ static BOOL PatchRVA(const char *imageName, uintptr_t rva, const void *bytes, si
             return NO;
         
         memcpy((void*)addr, bytes, len);
-        
-        // === SỬA DÒNG NÀY ===
-        // Thay __builtin___clear_cache bằng hàm chuẩn Apple
         sys_dcache_flush((void*)addr, len);
         sys_icache_invalidate((void*)addr, len);
-        
         mprotect((void*)page, plen, PROT_READ | PROT_EXEC);
         return YES;
     }
@@ -167,11 +268,11 @@ struct AutoPatch {
 };
 
 static const struct AutoPatch g_patches[] = {
-    // === anort.framework — Fix Crack LUÔN BẬT ===
+    // === anort.framework — Luôn bật ===
     {"anort",   0x31C4C, PATCH_DISABLE, sizeof(PATCH_DISABLE), NULL},
     {"anort",   0x4591C, PATCH_DISABLE, sizeof(PATCH_DISABLE), NULL},
     
-    // === UnityFramework — Antiban LUÔN BẬT ===
+    // === UnityFramework — Antiban ===
     {"UnityFramework", 0x706D890, PATCH_RET, sizeof(PATCH_RET), NULL},
     {"UnityFramework", 0x706D914, PATCH_RET, sizeof(PATCH_RET), NULL},
     {"UnityFramework", 0x706D9CC, PATCH_RET, sizeof(PATCH_RET), NULL},
@@ -190,7 +291,7 @@ static const struct AutoPatch g_patches[] = {
     {"UnityFramework", 0x05B65CC, PATCH_RET, sizeof(PATCH_RET), NULL},
     {"UnityFramework", 0x05B6764, PATCH_RET, sizeof(PATCH_RET), NULL},
     
-    // === Chức năng có Menu BẬT/TẮT ===
+    // === Chức năng có bật/tắt ===
     {"UnityFramework", 0x4A38100, PATCH_MAP,       sizeof(PATCH_MAP),       &g_Enabled_Map},
     {"UnityFramework", 0x554B9EC, PATCH_CAM1,      sizeof(PATCH_CAM1),      &g_Enabled_CamXa},
     {"UnityFramework", 0x541142C, PATCH_CAM2,      sizeof(PATCH_CAM2),      &g_Enabled_CamXa},
@@ -205,7 +306,7 @@ static const struct AutoPatch g_patches[] = {
 };
 
 // ==============================================
-// QUÉT & ÁP DỤNG PATCH
+// ÁP DỤNG PATCH THEO TRẠNG THÁI
 // ==============================================
 static void ApplyPatches(void) {
     for (int i = 0; g_patches[i].img; i++) {
@@ -228,11 +329,13 @@ static void ApplyPatches(void) {
 }
 
 // ==============================================
-// ẨN DẤU VẾT HỆ THỐNG
+// ẨN DẤU VẾT
 // ==============================================
 static int (*orig_access)(const char *, int) = NULL;
 static int hk_access(const char *p, int m) {
-    if (strstr(p, "liberi") || strstr(p, "anort") || strstr(p, "UnityFramework")) {
+    if (!p) return -1;
+    if (strstr(p, "liberi") || strstr(p, ".dylib") || 
+        strstr(p, "fishhook") || strstr(p, "wukong.framework/libsupport")) {
         errno = ENOENT;
         return -1;
     }
