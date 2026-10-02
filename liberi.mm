@@ -12,6 +12,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wunused-variable"
 
 // ==============================================
 // BIẾN TOÀN CỤC
@@ -23,7 +24,6 @@ static BOOL g_Enabled_LSD        = NO;
 static BOOL g_Enabled_HideRay    = NO;
 
 static UIView *g_menuView = nil;
-static UIButton *g_toggleBtn = nil;
 static BOOL g_menuVisible = YES;
 static CGPoint g_touchStartPos;
 
