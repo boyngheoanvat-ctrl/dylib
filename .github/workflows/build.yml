@@ -15,20 +15,20 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: ⬇️ Lấy code dự án
+      - name: ⬇️ Lấy code
         uses: actions/checkout@v4
 
       - name: ⚡ Cài Make + Theos
         run: |
           brew install make
-          export THEOS=$HOME/theos
+          export THEOS=/Users/runner/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
           $THEOS/bin/update-theos
           echo "PATH=$(brew --prefix make)/libexec/gnubin:$THEOS/bin:$PATH" >> $GITHUB_PATH
-          echo "THEOS=$THEOS" >> $GITHUB_ENV
 
       - name: 🔨 Build
         run: |
+          export THEOS=/Users/runner/theos
           make clean
           make -j$(sysctl -n hw.ncpu)
 
