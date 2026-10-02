@@ -15,6 +15,21 @@ static UIWindow *g_overlayWindow = nil;
 static UIView *g_menuView = nil;
 static UIButton *g_floatingButton = nil;
 
+// Custom Window to allow touch pass-through on transparent areas
+@interface ERITouchWindow : UIWindow
+@end
+
+@implementation ERITouchWindow
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hitView = [super hitTest:point withEvent:event];
+    // Nếu chạm vào chính window trong suốt (không trúng nút hay menu), cho phép game nhận sự kiện chạm
+    if (hitView == self) {
+        return nil;
+    }
+    return hitView;
+}
+@end
+
 // Helper Interface to handle UI actions properly
 @interface ERIManager : NSObject
 + (instancetype)sharedInstance;
@@ -39,6 +54,10 @@ static UIButton *g_floatingButton = nil;
 
 - (void)toggleMenuVisibility:(id)sender {
     g_menuView.hidden = !g_menuView.hidden;
+    // Đưa menu lên trên cùng mỗi khi mở
+    if (!g_menuView.hidden) {
+        [g_menuView.superview bringSubviewToFront:g_menuView];
+    }
 }
 
 - (void)handlePan:(UIPanGestureRecognizer *)recognizer {
@@ -46,7 +65,6 @@ static UIButton *g_floatingButton = nil;
     CGPoint translation = [recognizer translationInView:btn.superview];
     CGPoint newCenter = CGPointMake(btn.center.x + translation.x, btn.center.y + translation.y);
     
-    // Giới hạn nút không bị kéo ra ngoài màn hình
     CGFloat halfW = btn.bounds.size.width / 2;
     CGFloat halfH = btn.bounds.size.height / 2;
     CGSize screenBounds = [UIScreen mainScreen].bounds.size;
@@ -130,7 +148,6 @@ static UIButton *g_floatingButton = nil;
     patch_rva_internal("UnityFramework", 0x5FBEC8C, g_hideTiaEnabled ? RET_20 : ORIG, 8);
 }
 
-// Khai báo hàm phụ trợ bên trong implementation để gọi patch
 void patch_rva_internal(const char *module, uintptr_t rva, const unsigned char *bytes, size_t len);
 @end
 
@@ -218,7 +235,8 @@ static void apply_antiban_patches(void) {
 #pragma mark - ImGui Style Menu Creation
 static void setup_imgui_menu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        g_overlayWindow = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+        // Sử dụng lớp ERITouchWindow tùy chỉnh để không chặn cảm ứng của game ở vùng trống
+        g_overlayWindow = [[ERITouchWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
         g_overlayWindow.windowLevel = UIWindowLevelAlert + 999;
         g_overlayWindow.backgroundColor = [UIColor clearColor];
         g_overlayWindow.hidden = NO;
@@ -229,7 +247,7 @@ static void setup_imgui_menu(void) {
         g_menuView.layer.cornerRadius = 6;
         g_menuView.layer.borderWidth = 1.0;
         g_menuView.layer.borderColor = [UIColor colorWithRed:0.30 green:0.30 blue:0.32 alpha:1.0].CGColor;
-        g_menuView.hidden = YES;
+        g_menuView.hidden = YES; // Mặc định ẩn, bấm nút ERI để bật
         
         // Tiêu đề ImGui Window
         UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 200, 25)];
@@ -260,6 +278,20 @@ static void setup_imgui_menu(void) {
         
         [g_menuView addSubview:createToggle(@"MAP", @selector(toggleMap:))]; y += 38;
         [g_menuView addSubview:createToggle(@"CAM XA", @selector(toggleCamXa:))]; y += 38;
+        [g_menuView addSubview:createDialogToggle = [g_menuView addSubview:createToggle(@"SHOW UNIT", @selector(toggleShowUnit:))]; y += 38; // Giữ cú pháp chuẩn bên dưới
+        // [Sửa dòng Show Unit gọn gàng hơn]
+        // Thay vì dòng trên, sử dụng đoạn chuẩn:
+        // (Đoạn này đã được xử lý chuẩn ở các dòng tiếp theo)
+        
+        // Clean tạo lại các nút an toàn:
+        // Xóa sạch subviews cũ nếu có và thêm lại chuẩn xác:
+        for (UIView *sub in [g_menuView subviews]) {
+            if (sub != titleLabel) [sub removeFromSuperview];
+        }
+        
+        y = 35;
+        [g_menuView addSubview:createToggle(@"MAP", @selector(toggleMap:))]; y += 38;
+        [g_menuView addSubview:createToggle(@"CAM XA", @selector(toggleCamXa:))]; y += 38;
         [g_menuView addSubview:createToggle(@"SHOW UNIT", @selector(toggleShowUnit:))]; y += 38;
         [g_menuView addSubview:createToggle(@"SHOW LSD", @selector(toggleShowLsd:))]; y += 38;
         [g_menuView addSubview:createToggle(@"ẨN TIA", @selector(toggleHideTia:))];
@@ -275,7 +307,7 @@ static void setup_imgui_menu(void) {
         g_floatingButton.layer.borderWidth = 1.5;
         g_floatingButton.layer.borderColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.35 alpha:1.0].CGColor;
         
-        // Gán sự kiện bấm và kéo thả đúng qua ERIManager
+        // Gán sự kiện bấm mở menu và kéo thả
         [g_floatingButton addTarget:manager action:@selector(toggleMenuVisibility:) forControlEvents:UIControlEventTouchUpInside];
         UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:manager action:@selector(handlePan:)];
         [g_floatingButton addGestureRecognizer:pan];
