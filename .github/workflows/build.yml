@@ -23,11 +23,10 @@ jobs:
       - name: ⚡ Cài Make + Theos ĐẦY ĐỦ
         run: |
           brew install make
-          echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
-          # Clone Theos bao gồm cả submodule/vendor
-          git clone --recursive https://github.com/theos/theos.git $HOME/theos
-          # Cập nhật nếu cần
-          $HOME/theos/bin/update-theos
+          echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_PATH
+          export THEOS=$HOME/theos
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          $THEOS/bin/update-theos
 
       - name: 🔨 Build
         env:
