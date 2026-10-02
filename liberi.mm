@@ -1,152 +1,24 @@
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <mach/mach.h>
 #import <mach-o/dyld.h>
-#import <UIKit/UIKit.h>
 
-// State variables for features
-static BOOL g_mapEnabled = NO;
-static BOOL g_camXaEnabled = NO;
+#pragma mark - State
+
+static BOOL g_mapEnabled      = NO;
+static BOOL g_camXaEnabled    = NO;
 static BOOL g_showUnitEnabled = NO;
-static BOOL g_showLsdEnabled = NO;
-static BOOL g_hideTiaEnabled = NO;
+static BOOL g_showLsdEnabled  = NO;
+static BOOL g_hideTiaEnabled  = NO;
 
-// UI Elements
 static UIWindow *g_overlayWindow = nil;
 static UIView *g_menuView = nil;
 static UIButton *g_floatingButton = nil;
 
-// Custom Window to allow touch pass-through on transparent areas
-@interface ERITouchWindow : UIWindow
-@end
-
-@implementation ERITouchWindow
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    UIView *hitView = [super hitTest:point withEvent:event];
-    if (hitView == self) {
-        return nil;
-    }
-    return hitView;
-}
-@end
-
-// Helper Interface to handle UI actions properly
-@interface ERIManager : NSObject
-+ (instancetype)sharedInstance;
-- (void)toggleMenuVisibility:(id)sender;
-- (void)handlePan:(UIPanGestureRecognizer *)recognizer;
-- (void)handleWindowPan:(UIPanGestureRecognizer *)recognizer;
-- (void)toggleFeature:(UIButton *)sender;
-@end
-
-@implementation ERIManager
-+ (instancetype)sharedInstance {
-    static ERIManager *shared = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        shared = [[ERIManager alloc] init];
-    });
-    return shared;
-}
-
-- (void)toggleMenuVisibility:(id)sender {
-    g_menuView.hidden = !g_menuView.hidden;
-    if (!g_menuView.hidden) {
-        [g_menuView.superview bringSubviewToFront:g_menuView];
-    }
-}
-
-- (void)handlePan:(UIPanGestureRecognizer *)recognizer {
-    UIView *btn = recognizer.view;
-    CGPoint translation = [recognizer translationInView:btn.superview];
-    CGPoint newCenter = CGPointMake(btn.center.x + translation.x, btn.center.y + translation.y);
-    
-    CGFloat halfW = btn.bounds.size.width / 2;
-    CGFloat halfH = btn.bounds.size.height / 2;
-    CGSize screenBounds = [UIScreen mainScreen].bounds.size;
-    
-    newCenter.x = MAX(halfW, MIN(screenBounds.width - halfW, newCenter.x));
-    newCenter.y = MAX(halfH, MIN(screenBounds.height - halfH, newCenter.y));
-    
-    btn.center = newCenter;
-    [recognizer setTranslation:CGPointZero inView:btn.superview];
-}
-
-// Cho phép kéo thả cả cửa sổ menu giống ImGui Window
-- (void)handleWindowPan:(UIPanGestureRecognizer *)recognizer {
-    UIView *menu = g_menuView;
-    CGPoint translation = [recognizer translationInView:menu.superview];
-    CGPoint newCenter = CGPointMake(menu.center.x + translation.x, menu.center.y + translation.y);
-    
-    menu.center = newCenter;
-    [recognizer setTranslation:CGPointZero inView:menu.superview];
-}
-
-- (void)toggleFeature:(UIButton *)sender {
-    NSInteger tag = sender.tag;
-    
-    // Cập nhật trạng thái tương ứng với từng nút
-    if (tag == 1) {
-        g_mapEnabled = !g_mapEnabled;
-        [sender setTitle:g_mapEnabled ? @"[x] MAP" : @"[ ] MAP" forState:UIControlStateNormal];
-        sender.backgroundColor = g_mapEnabled ? [UIColor colorWithRed:0.20 green:0.45 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
-        patch_rva_internal("UnityFramework", 0x4A38100, g_mapEnabled ? (const unsigned char*)"\x36\x00\x80\xD2" : (const unsigned char*)"\x00\x00\x80\xD2", 4);
-    } else if (tag == 2) {
-        g_camXaEnabled = !g_camXaEnabled;
-        [sender setTitle:g_camXaEnabled ? @"[x] CAM XA" : @"[ ] CAM XA" forState:UIControlStateNormal];
-        sender.backgroundColor = g_camXaEnabled ? [UIColor colorWithRed:0.20 green:0.45 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
-        
-        const unsigned char CAM_BYTES1[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-        const unsigned char CAM_BYTES2[] = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
-        const unsigned char ORIG_8[]     = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-        const unsigned char ORIG_12[]    = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
-
-        if (g_camXaEnabled) {
-            patch_rva_internal("UnityFramework", 0x554B9EC, CAM_BYTES1, 8);
-            patch_rva_internal("UnityFramework", 0x541142C, CAM_BYTES2, 12);
-            patch_rva_internal("UnityFramework", 0x550E2BC, CAM_BYTES2, 12);
-        } else {
-            patch_rva_internal("UnityFramework", 0x554B9EC, ORIG_8, 8);
-            patch_rva_internal("UnityFramework", 0x541142C, ORIG_12, 12);
-            patch_rva_internal("UnityFramework", 0x550E2BC, ORIG_12, 12);
-        }
-    } else if (tag == 3) {
-        g_showUnitEnabled = !g_showUnitEnabled;
-        [sender setTitle:g_showUnitEnabled ? @"[x] SHOW UNIT" : @"[ ] SHOW UNIT" forState:UIControlStateNormal];
-        sender.backgroundColor = g_showUnitEnabled ? [UIColor colorWithRed:0.20 green:0.45 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
-        
-        const unsigned char UNIT_BYTES[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-        const unsigned char ORIG_8[]     = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-
-        if (g_showUnitEnabled) {
-            patch_rva_internal("UnityFramework", 0x5F1C394, UNIT_BYTES, 8);
-            patch_rva_internal("UnityFramework", 0x6A6B798, UNIT_BYTES, 8);
-            patch_rva_internal("UnityFramework", 0x6A6B8FC, UNIT_BYTES, 8);
-        } else {
-            patch_rva_internal("UnityFramework", 0x5F1C394, ORIG_8, 8);
-            patch_rva_internal("UnityFramework", 0x6A6B798, ORIG_8, 8);
-            patch_rva_internal("UnityFramework", 0x6A6B8FC, ORIG_8, 8);
-        }
-    } else if (tag == 4) {
-        g_showLsdEnabled = !g_showLsdEnabled;
-        [sender setTitle:g_showLsdEnabled ? @"[x] SHOW LSD" : @"[ ] SHOW LSD" forState:UIControlStateNormal];
-        sender.backgroundColor = g_showLsdEnabled ? [UIColor colorWithRed:0.20 green:0.45 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
-        
-        const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-        const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-        patch_rva_internal("UnityFramework", 0x5ADF5A8, g_showLsdEnabled ? RET_20 : ORIG, 8);
-    } else if (tag == 5) {
-        g_hideTiaEnabled = !g_hideTiaEnabled;
-        [sender setTitle:g_hideTiaEnabled ? @"[x] ẨN TIA" : @"[ ] ẨN TIA" forState:UIControlStateNormal];
-        sender.backgroundColor = g_hideTiaEnabled ? [UIColor colorWithRed:0.20 green:0.45 blue:0.25 alpha:1.0] : [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
-        
-        const unsigned char RET_20[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-        const unsigned char ORIG[]   = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-        patch_rva_internal("UnityFramework", 0x5FBEC8C, g_hideTiaEnabled ? RET_20 : ORIG, 8);
-    }
-}
+#pragma mark - Memory Patching Helpers
 
 void patch_rva_internal(const char *module, uintptr_t rva, const unsigned char *bytes, size_t len);
-@end
 
 static void patch_memory(void *addr, const void *data, size_t len) {
     vm_address_t page_start = (vm_address_t)addr & ~(PAGE_SIZE - 1);
@@ -178,12 +50,15 @@ void patch_rva_internal(const char *module, uintptr_t rva, const unsigned char *
     patch_memory(addr, bytes, len);
 }
 
-#pragma mark - Patches
+#pragma mark - Antiban / Bypass Patches
 static void apply_antiban_patches(void) {
-    const unsigned char RET_8[]   = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char RET_4[]   = {0xC0, 0x03, 0x5F, 0xD6};
+    const unsigned char RET_8[] = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
+    const unsigned char RET_4[] = {0xC0, 0x03, 0x5F, 0xD6};
 
     #define P1(rva) patch_rva_internal("UnityFramework", rva, RET_8, sizeof(RET_8))
+    #define P2(rva) patch_rva_internal("UnityFramework", rva, RET_4, sizeof(RET_4))
+
+    // Danh sách các offset Antiban 8 bytes (RET_8)
     P1(0x5CD0C04); P1(0x6A60228); P1(0x6A69CAC); P1(0x6A69D9C); P1(0x6AEB808);
     P1(0x6DBC0B0); P1(0x6DBC0B4); P1(0x6DBC294); P1(0x6DBC298); P1(0x6DC59DC);
     P1(0x6DCB8E8); P1(0x6E01E60); P1(0x705DB3C); P1(0x705DB38); P1(0x706D94C);
@@ -220,104 +95,573 @@ static void apply_antiban_patches(void) {
     P1(0x7876684); P1(0x78768B0); P1(0x111DB70); P1(0x7947C84); P1(0x794A95C);
     P1(0x79499AC); P1(0x794BB00); P1(0x794AC58);
 
-    #define P2(rva) patch_rva_internal("UnityFramework", rva, RET_4, sizeof(RET_4))
+    // Danh sách các offset Antiban 4 bytes (RET_4)
     P2(0x6A975D8); P2(0x6262450); P2(0x4E2DBBC); P2(0x8D2830);  P2(0x8D28B8);
     P2(0x3DBDAC4); P2(0x378D94);  P2(0x378D9C);  P2(0x7D58360); P2(0x74FF808);
     P2(0x7502AB0); P2(0x76572D4); P2(0x765CC78); P2(0x7661474); P2(0x774EEC8);
-    P2(0x775A310); P2(0x7790E40); P2(0x3D3E37C);
-    P2(0x72AE46C); P2(0x735B4AC); P2(0x5B4A54C); P2(0xB9AE00);
+    P2(0x775A310); P2(0x7790E40); P2(0x3D3E37C); P2(0x72AE46C); P2(0x735B4AC);
+    P2(0x5B4A54C); P2(0xB9AE00);
 }
 
-#pragma mark - ImGui Style Menu Creation
-static void setup_imgui_menu(void) {
+#pragma mark - Touch Window
+
+@interface ERITouchWindow : UIWindow
+@end
+
+@implementation ERITouchWindow
+
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
+{
+    if (self.hidden || self.alpha <= 0.01)
+        return nil;
+
+    UIView *hit = [super hitTest:point withEvent:event];
+
+    if (hit == self ||
+        hit == self.rootViewController.view) {
+        return nil;
+    }
+
+    return hit;
+}
+
+@end
+
+#pragma mark - Manager
+
+@interface ERIManager : NSObject
+
++ (instancetype)sharedInstance;
+
+- (void)toggleMenuVisibility:(id)sender;
+- (void)handleFloatingPan:(UIPanGestureRecognizer *)gesture;
+- (void)handleWindowPan:(UIPanGestureRecognizer *)gesture;
+- (void)toggleFeature:(UIButton *)sender;
+
+@end
+
+#pragma mark - Manager Implementation
+
+@implementation ERIManager
+
++ (instancetype)sharedInstance
+{
+    static ERIManager *instance = nil;
+    static dispatch_once_t onceToken;
+
+    dispatch_once(&onceToken, ^{
+        instance = [[ERIManager alloc] init];
+    });
+
+    return instance;
+}
+
+#pragma mark Menu
+
+- (void)toggleMenuVisibility:(id)sender
+{
     dispatch_async(dispatch_get_main_queue(), ^{
-        CGRect screenBounds = [UIScreen mainScreen].bounds;
-        g_overlayWindow = [[ERITouchWindow alloc] initWithFrame:screenBounds];
-        g_overlayWindow.windowLevel = UIWindowLevelAlert + 999;
-        g_overlayWindow.backgroundColor = [UIColor clearColor];
+
+        if (!g_menuView)
+            return;
+
+        g_menuView.hidden = !g_menuView.hidden;
+
+        if (!g_menuView.hidden) {
+
+            UIView *parent = g_menuView.superview;
+
+            if (parent) {
+                [parent bringSubviewToFront:g_menuView];
+                [parent bringSubviewToFront:g_floatingButton];
+            }
+        }
+    });
+}
+
+#pragma mark Floating Button Drag
+
+- (void)handleFloatingPan:(UIPanGestureRecognizer *)gesture
+{
+    UIView *button = gesture.view;
+
+    if (!button || !button.superview)
+        return;
+
+    UIView *parent = button.superview;
+
+    CGPoint translation =
+        [gesture translationInView:parent];
+
+    CGPoint center = button.center;
+
+    center.x += translation.x;
+    center.y += translation.y;
+
+    CGFloat halfW = button.bounds.size.width / 2.0;
+    CGFloat halfH = button.bounds.size.height / 2.0;
+
+    CGFloat minX = halfW;
+    CGFloat maxX = parent.bounds.size.width - halfW;
+
+    CGFloat minY = halfH;
+    CGFloat maxY = parent.bounds.size.height - halfH;
+
+    center.x = MAX(minX, MIN(maxX, center.x));
+    center.y = MAX(minY, MIN(maxY, center.y));
+
+    button.center = center;
+
+    [gesture setTranslation:CGPointZero
+                    inView:parent];
+}
+
+#pragma mark Menu Drag
+
+- (void)handleWindowPan:(UIPanGestureRecognizer *)gesture
+{
+    UIView *menu = g_menuView;
+
+    if (!menu || menu.hidden || !menu.superview)
+        return;
+
+    UIView *parent = menu.superview;
+
+    CGPoint translation =
+        [gesture translationInView:parent];
+
+    CGPoint center = menu.center;
+
+    center.x += translation.x;
+    center.y += translation.y;
+
+    CGFloat halfW = menu.bounds.size.width / 2.0;
+    CGFloat halfH = menu.bounds.size.height / 2.0;
+
+    CGFloat minX = halfW;
+    CGFloat maxX = parent.bounds.size.width - halfW;
+
+    CGFloat minY = halfH;
+    CGFloat maxY = parent.bounds.size.height - halfH;
+
+    center.x = MAX(minX, MIN(maxX, center.x));
+    center.y = MAX(minY, MIN(maxY, center.y));
+
+    menu.center = center;
+
+    [gesture setTranslation:CGPointZero
+                    inView:parent];
+}
+
+#pragma mark Button UI
+
+- (void)updateButton:(UIButton *)button
+               title:(NSString *)title
+             enabled:(BOOL)enabled
+{
+    NSString *text =
+        [NSString stringWithFormat:@"[%@] %@",
+         enabled ? @"x" : @" ",
+         title];
+
+    [button setTitle:text
+            forState:UIControlStateNormal];
+
+    if (enabled) {
+
+        button.backgroundColor =
+            [UIColor colorWithRed:0.20
+                            green:0.45
+                             blue:0.25
+                            alpha:1.0];
+
+    } else {
+
+        button.backgroundColor =
+            [UIColor colorWithRed:0.20
+                            green:0.20
+                             blue:0.22
+                            alpha:1.0];
+    }
+}
+
+#pragma mark Feature Toggle (With Provided Offsets)
+
+- (void)toggleFeature:(UIButton *)sender
+{
+    if (!sender)
+        return;
+
+    switch (sender.tag) {
+
+        case 1:
+        {
+            g_mapEnabled = !g_mapEnabled;
+            [self updateButton:sender title:@"MAP" enabled:g_mapEnabled];
+
+            // Map: 0x4A38100
+            const unsigned char MAP_ON[]  = {0x36, 0x00, 0x80, 0xD2};
+            const unsigned char MAP_OFF[] = {0x00, 0x00, 0x80, 0xD2}; // Giá trị gốc thông thường hoặc thay đổi phù hợp
+            patch_rva_internal("UnityFramework", 0x4A38100, g_mapEnabled ? MAP_ON : MAP_OFF, 4);
+        }
+        break;
+
+        case 2:
+        {
+            g_camXaEnabled = !g_camXaEnabled;
+            [self updateButton:sender title:@"CAM XA" enabled:g_camXaEnabled];
+
+            // Cam xa offsets
+            const unsigned char CAM1_ON[]  = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+            const unsigned char CAM1_OFF[] = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+
+            const unsigned char CAM2_ON[]  = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
+            const unsigned char CAM2_OFF[] = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6, 0xC0, 0x03, 0x5F, 0xD6}; // hoặc gốc tương ứng
+
+            if (g_camXaEnabled) {
+                patch_rva_internal("UnityFramework", 0x554B9EC, CAM1_ON, 8);
+                patch_rva_internal("UnityFramework", 0x541142C, CAM2_ON, 12);
+                patch_rva_internal("UnityFramework", 0x550E2BC, CAM2_ON, 12);
+            } else {
+                patch_rva_internal("UnityFramework", 0x554B9EC, CAM1_OFF, 8);
+                patch_rva_internal("UnityFramework", 0x541142C, CAM2_OFF, 12);
+                patch_rva_internal("UnityFramework", 0x550E2BC, CAM2_OFF, 12);
+            }
+        }
+        break;
+
+        case 3:
+        {
+            g_showUnitEnabled = !g_showUnitEnabled;
+            [self updateButton:sender title:@"SHOW UNIT" enabled:g_showUnitEnabled];
+
+            // Show Unit offsets
+            const unsigned char UNIT_ON[]  = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+            const unsigned char UNIT_OFF[] = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+
+            if (g_showUnitEnabled) {
+                patch_rva_internal("UnityFramework", 0x5F1C394, UNIT_ON, 8);
+                patch_rva_internal("UnityFramework", 0x6A6B798, UNIT_ON, 8);
+                patch_rva_internal("UnityFramework", 0x6A6B8FC, UNIT_ON, 8);
+            } else {
+                patch_rva_internal("UnityFramework", 0x5F1C394, UNIT_OFF, 8);
+                patch_rva_internal("UnityFramework", 0x6A6B798, UNIT_OFF, 8);
+                patch_rva_internal("UnityFramework", 0x6A6B8FC, UNIT_OFF, 8);
+            }
+        }
+        break;
+
+        case 4:
+        {
+            g_showLsdEnabled = !g_showLsdEnabled;
+            [self updateButton:sender title:@"SHOW LSD" enabled:g_showLsdEnabled];
+
+            // Show LSD: 0x5ADF5A8
+            const unsigned char LSD_ON[]  = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+            const unsigned char LSD_OFF[] = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+            patch_rva_internal("UnityFramework", 0x5ADF5A8, g_showLsdEnabled ? LSD_ON : LSD_OFF, 8);
+        }
+        break;
+
+        case 5:
+        {
+            g_hideTiaEnabled = !g_hideTiaEnabled;
+            [self updateButton:sender title:@"ẨN TIA" enabled:g_hideTiaEnabled];
+
+            // Ẩn tia: 0x5FBEC8C
+            const unsigned char TIA_ON[]  = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+            const unsigned char TIA_OFF[] = {0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
+            patch_rva_internal("UnityFramework", 0x5FBEC8C, g_hideTiaEnabled ? TIA_ON : TIA_OFF, 8);
+        }
+        break;
+
+        default:
+            break;
+    }
+}
+
+@end
+
+#pragma mark - Menu Creation
+
+static UIButton *ERI_CreateButton(
+    NSString *title,
+    NSInteger tag,
+    CGRect frame,
+    ERIManager *manager)
+{
+    UIButton *button =
+        [UIButton buttonWithType:UIButtonTypeCustom];
+
+    button.frame = frame;
+    button.tag = tag;
+
+    button.backgroundColor =
+        [UIColor colorWithRed:0.20
+                        green:0.20
+                         blue:0.22
+                        alpha:1.0];
+
+    button.layer.cornerRadius = 3.0;
+    button.layer.borderWidth = 0.5;
+
+    button.layer.borderColor =
+        [UIColor colorWithRed:0.35
+                        green:0.35
+                         blue:0.38
+                        alpha:1.0].CGColor;
+
+    [button setTitle:
+        [NSString stringWithFormat:@"[ ] %@", title]
+          forState:UIControlStateNormal];
+
+    [button setTitleColor:
+        [UIColor colorWithRed:0.90
+                        green:0.90
+                         blue:0.90
+                        alpha:1.0]
+      forState:UIControlStateNormal];
+
+    button.titleLabel.font =
+        [UIFont boldSystemFontOfSize:11.0];
+
+    button.contentHorizontalAlignment =
+        UIControlContentHorizontalAlignmentLeft;
+
+    button.titleEdgeInsets =
+        UIEdgeInsetsMake(0, 8, 0, 0);
+
+    [button addTarget:manager
+               action:@selector(toggleFeature:)
+     forControlEvents:UIControlEventTouchUpInside];
+
+    return button;
+}
+
+#pragma mark - Setup
+
+static void setup_eri_menu(void)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+
+        if (g_overlayWindow) {
+            g_overlayWindow.hidden = NO;
+            return;
+        }
+
+        CGRect screenBounds =
+            [UIScreen mainScreen].bounds;
+
+        g_overlayWindow =
+            [[ERITouchWindow alloc]
+             initWithFrame:screenBounds];
+
+        g_overlayWindow.backgroundColor =
+            UIColor.clearColor;
+
+        g_overlayWindow.opaque = NO;
+
+        g_overlayWindow.windowLevel =
+            UIWindowLevelAlert + 1;
+
+        UIViewController *rootVC =
+            [[UIViewController alloc] init];
+
+        rootVC.view.backgroundColor =
+            UIColor.clearColor;
+
+        g_overlayWindow.rootViewController =
+            rootVC;
+
         g_overlayWindow.hidden = NO;
-        
-        // --- Cửa sổ chính kiểu ImGui Dark Theme ---
-        g_menuView = [[UIView alloc] initWithFrame:CGRectMake(100, 100, 220, 260)];
-        g_menuView.backgroundColor = [UIColor colorWithRed:0.06 green:0.06 blue:0.07 alpha:0.95];
-        g_menuView.layer.cornerRadius = 4;
+
+        ERIManager *manager =
+            [ERIManager sharedInstance];
+
+        UIView *container = rootVC.view;
+
+        #pragma mark Menu
+
+        g_menuView =
+            [[UIView alloc]
+             initWithFrame:
+                CGRectMake(100, 100, 220, 260)];
+
+        g_menuView.backgroundColor =
+            [UIColor colorWithRed:0.06
+                            green:0.06
+                             blue:0.07
+                            alpha:0.96];
+
+        g_menuView.layer.cornerRadius = 5.0;
+
         g_menuView.layer.borderWidth = 1.0;
-        g_menuView.layer.borderColor = [UIColor colorWithRed:0.25 green:0.25 blue:0.28 alpha:1.0].CGColor;
+
+        g_menuView.layer.borderColor =
+            [UIColor colorWithRed:0.25
+                            green:0.25
+                             blue:0.28
+                            alpha:1.0].CGColor;
+
+        g_menuView.clipsToBounds = YES;
+
         g_menuView.hidden = YES;
-        
-        // --- Tiêu đề ImGui Window (có thể chạm vào để kéo di chuyển cửa sổ menu) ---
-        UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 220, 24)];
-        titleLabel.text = @"  ERI CHEAT MENU v1.0";
-        titleLabel.textColor = [UIColor colorWithRed:0.85 green:0.85 blue:0.88 alpha:1.0];
-        titleLabel.font = [UIFont boldSystemFontOfSize:11];
-        titleLabel.backgroundColor = [UIColor colorWithRed:0.16 green:0.16 blue:0.18 alpha:1.0];
-        titleLabel.layer.cornerRadius = 4;
-        titleLabel.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
-        titleLabel.clipsToBounds = YES;
-        titleLabel.userInteractionEnabled = YES;
-        
-        ERIManager *manager = [ERIManager sharedInstance];
-        UIPanGestureRecognizer *windowPan = [[UIPanGestureRecognizer alloc] initWithTarget:manager action:@selector(handleWindowPan:)];
-        [titleLabel addGestureRecognizer:windowPan];
-        [g_menuView addSubview:titleLabel];
-        
-        // --- Tạo các nút Toggle bên trong menu theo style ImGui Checkbox/Button ---
-        CGFloat y = 34, h = 30, w = 200, x = 10;
-        
-        UIButton* (^createImGuiToggle)(NSString*, NSInteger) = ^(NSString *title, NSInteger tag) {
-            UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
-            btn.frame = CGRectMake(x, y, w, h);
-            btn.layer.cornerRadius = 3;
-            btn.backgroundColor = [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
-            btn.layer.borderWidth = 0.5;
-            btn.layer.borderColor = [UIColor colorWithRed:0.35 green:0.35 blue:0.38 alpha:1.0].CGColor;
-            
-            [btn setTitle:[NSString stringWithFormat:@"[ ] %@", title] forState:UIControlStateNormal];
-            [btn setTitleColor:[UIColor colorWithRed:0.9 green:0.9 blue:0.9 alpha:1.0] forState:UIControlStateNormal];
-            btn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
-            btn.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-            btn.titleEdgeInsets = UIEdgeInsetsMake(0, 8, 0, 0);
-            
-            btn.tag = tag;
-            [btn addTarget:manager action:@selector(toggleFeature:) forControlEvents:UIControlEventTouchUpInside];
-            return btn;
-        };
-        
-        [g_menuView addSubview:createImGuiToggle(@"MAP", 1)]; y += 36;
-        [g_menuView addSubview:createImGuiToggle(@"CAM XA", 2)]; y += 36;
-        [g_menuView addSubview:createImGuiToggle(@"SHOW UNIT", 3)]; y += 36;
-        [g_menuView addSubview:createImGuiToggle(@"SHOW LSD", 4)]; y += 36;
-        [g_menuView addSubview:createImGuiToggle(@"ẨN TIA", 5)];
-        
-        // --- Nút nổi (Floating Button) phong cách gọn nhẹ ---
-        g_floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        g_floatingButton.frame = CGRectMake(30, 100, 42, 42);
-        g_floatingButton.backgroundColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.12 alpha:0.90];
-        [g_floatingButton setTitle:@"ERI" forState:UIControlStateNormal];
-        [g_floatingButton setTitleColor:[UIColor colorWithRed:0.2 green:0.75 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
-        g_floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:11];
-        g_floatingButton.layer.cornerRadius = 21;
+
+        [container addSubview:g_menuView];
+
+        #pragma mark Title Bar
+
+        UIView *titleBar =
+            [[UIView alloc]
+             initWithFrame:
+                CGRectMake(0, 0, 220, 28)];
+
+        titleBar.backgroundColor =
+            [UIColor colorWithRed:0.16
+                            green:0.16
+                             blue:0.18
+                            alpha:1.0];
+
+        titleBar.userInteractionEnabled = YES;
+
+        UILabel *title =
+            [[UILabel alloc]
+             initWithFrame:
+                CGRectMake(8, 0, 204, 28)];
+
+        title.text =
+            @"ERI MOD MENU v1.0";
+
+        title.textColor =
+            [UIColor colorWithRed:0.88
+                            green:0.88
+                             blue:0.90
+                            alpha:1.0];
+
+        title.font =
+            [UIFont boldSystemFontOfSize:11.0];
+
+        title.userInteractionEnabled = NO;
+
+        [titleBar addSubview:title];
+
+        [g_menuView addSubview:titleBar];
+
+        UIPanGestureRecognizer *menuPan =
+            [[UIPanGestureRecognizer alloc]
+             initWithTarget:manager
+             action:@selector(handleWindowPan:)];
+
+        [titleBar addGestureRecognizer:menuPan];
+
+        #pragma mark Buttons
+
+        CGFloat x = 10.0;
+        CGFloat y = 36.0;
+
+        CGFloat w = 200.0;
+        CGFloat h = 30.0;
+
+        NSArray *names = @[
+            @"MAP",
+            @"CAM XA",
+            @"SHOW UNIT",
+            @"SHOW LSD",
+            @"ẨN TIA"
+        ];
+
+        for (NSInteger i = 0;
+             i < names.count;
+             i++) {
+
+            UIButton *button =
+                ERI_CreateButton(
+                    names[i],
+                    i + 1,
+                    CGRectMake(x, y, w, h),
+                    manager
+                );
+
+            [g_menuView addSubview:button];
+
+            y += 36.0;
+        }
+
+        #pragma mark Floating Button
+
+        g_floatingButton =
+            [UIButton buttonWithType:
+                UIButtonTypeCustom];
+
+        g_floatingButton.frame =
+            CGRectMake(30, 100, 44, 44);
+
+        g_floatingButton.backgroundColor =
+            [UIColor colorWithRed:0.10
+                            green:0.10
+                             blue:0.12
+                            alpha:0.92];
+
+        [g_floatingButton setTitle:
+            @"ERI"
+            forState:UIControlStateNormal];
+
+        [g_floatingButton setTitleColor:
+            [UIColor colorWithRed:0.20
+                            green:0.75
+                             blue:1.0
+                            alpha:1.0]
+            forState:UIControlStateNormal];
+
+        g_floatingButton.titleLabel.font =
+            [UIFont boldSystemFontOfSize:11.0];
+
+        g_floatingButton.layer.cornerRadius = 22.0;
+
         g_floatingButton.layer.borderWidth = 1.0;
-        g_floatingButton.layer.borderColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.35 alpha:1.0].CGColor;
-        
-        // Gán sự kiện mở menu và kéo thả nút nổi
-        [g_floatingButton addTarget:manager action:@selector(toggleMenuVisibility:) forControlEvents:UIControlEventTouchUpInside];
-        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:manager action:@selector(handlePan:)];
-        [g_floatingButton addGestureRecognizer:pan];
-        
-        [g_overlayWindow addSubview:g_menuView];
-        [g_overlayWindow addSubview:g_floatingButton];
-        g_overlayWindow.rootViewController = [UIViewController new];
+
+        g_floatingButton.layer.borderColor =
+            [UIColor colorWithRed:0.30
+                            green:0.30
+                             blue:0.35
+                            alpha:1.0].CGColor;
+
+        [container addSubview:g_floatingButton];
+
+        [g_floatingButton
+            addTarget:manager
+            action:@selector(toggleMenuVisibility:)
+            forControlEvents:
+                UIControlEventTouchUpInside];
+
+        UIPanGestureRecognizer *floatingPan =
+            [[UIPanGestureRecognizer alloc]
+             initWithTarget:manager
+             action:@selector(handleFloatingPan:)];
+
+        [g_floatingButton
+            addGestureRecognizer:floatingPan];
+
+        [container bringSubviewToFront:g_floatingButton];
+
+        NSLog(@"[ERI] Menu UI loaded with all offsets.");
     });
 }
 
 #pragma mark - Entry
+
 __attribute__((constructor))
-static void eri_init(void) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"[ERI] 🔥 Đang kích hoạt Antiban vĩnh viễn...");
-        apply_antiban_patches();
-        setup_imgui_menu();
-        NSLog(@"[ERI] ✅ Đã tải giao diện ImGui thành công.");
-    });
+static void eri_init(void)
+{
+    dispatch_after(
+        dispatch_time(
+            DISPATCH_TIME_NOW,
+            (int64_t)(1.5 * NSEC_PER_SEC)
+        ),
+        dispatch_get_main_queue(),
+        ^{
+            apply_antiban_patches();
+            setup_eri_menu();
+        }
+    );
 }
