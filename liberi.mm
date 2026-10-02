@@ -8,6 +8,7 @@
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
 
+// Khai báo biến toàn cục cho Window Menu
 static UIWindow *menuWindow = nil;
 static uintptr_t unity_base_addr = 0;
 
@@ -23,7 +24,7 @@ uintptr_t get_image_slide_address(const char* image_name) {
     return 0;
 }
 
-// Hàm ghi đè bộ nhớ an toàn
+// Hàm ghi đè bộ nhớ trực tiếp
 bool RawCodePatch(uintptr_t absolute_address, const void* patch_bytes, size_t length) {
     if (absolute_address == 0) return false;
 
@@ -70,21 +71,65 @@ void PatchOffset(uintptr_t base_addr, uint64_t offset, const char* hex_bytes) {
     RawCodePatch(target_addr, bytes, len);
 }
 
-// Hàm kích hoạt Antiban mới gọn nhẹ
+// Tự động chạy Antiban ngầm
 void apply_antiban() {
-    if (unity_base_addr == 0) return;
+    while (unity_base_addr == 0) {
+        unity_base_addr = get_image_slide_address("UnityFramework");
+        usleep(200000);
+    }
+
+    const char* ret8 = "00 00 80 D2 C0 03 5F D6";
+    uint64_t p1_offsets[] = {
+        0x5CD0C04, 0x6A60228, 0x6A69CAC, 0x6A69D9C, 0x6AEB808,
+        0x6DBC0B0, 0x6DBC0B4, 0x6DBC294, 0x6DBC298, 0x6DC59DC,
+        0x6DCB8E8, 0x6E01E60, 0x705DB3C, 0x705DB38, 0x706D94C,
+        0x706E30C, 0x706D9CC, 0x706E938, 0x70985BC, 0x7098624,
+        0x7182C4C, 0x7182C50, 0x7182C54, 0x718370C, 0x71837B4,
+        0x71838D4, 0x7267A24, 0x72D0C2C, 0x72D0C30, 0x5221798,
+        0x5221818, 0x5221918, 0x5221998, 0x5221A18, 0x556CBD8,
+        0x556CEA8, 0x556CFD4, 0x5682E38, 0x6179804, 0x6179A6C,
+        0x6179C04, 0x6179DCC, 0x6179FAC, 0x617A270, 0x617A430,
+        0x6230268, 0x6238C30, 0x62643FC, 0x627B2FC, 0x627C97C,
+        0x6339604, 0x6460F74, 0x646A470, 0x6469AF0, 0x68FDBA4,
+        0x69E2C0C, 0x4096CB0, 0x4384A98, 0x4386594, 0x43F1C5C,
+        0x440F8E4, 0x4410D50, 0x5162A4,  0x5162FC,  0x5295F4,
+        0x52964C, 0xB86780,  0xB86808,  0x3D60BA0, 0x3D69418,
+        0x3F74DBC, 0x3F76240, 0x3F82444, 0x3DBDAC4, 0x3DC47FC,
+        0x3DD3BB8, 0x3DE7260, 0x3DE75A8, 0x3E03488, 0x3E098B4,
+        0x3E567D4, 0x3E586F0, 0x3E587F8, 0x3E58CB4, 0x3E5CC8C,
+        0xF02F68,  0xF02FC4,  0xF03108,  0xF031B8,  0xF032B8,
+        0xF03614,  0xF037F0,  0xF03BA0,  0xF03E74,  0xF03B3C,
+        0xEF453C,  0xF06610,  0xF29E98,  0xE88420,  0xE88508,
+        0xE885C0,  0xE89224,  0x74F80D4, 0x74FA6D8, 0x74FD2D0,
+        0x74FD3A8, 0x74FEEB0, 0x7502784, 0x74FF808, 0x7502AB0,
+        0x7502EA4, 0x7503400, 0x74FA46C, 0x750975C, 0x750A1EC,
+        0x7509CE4, 0x76BCC3C, 0x76587A8, 0x76572D4, 0x765CC78,
+        0x7661474, 0x7657494, 0x76FA234, 0x76FBE18, 0x7707DC8,
+        0x7709690, 0x7713634, 0x77137A4, 0x774852C, 0x7749650,
+        0x77539A0, 0x77539B0, 0x774EEC8, 0x774ED98, 0x774F7E0,
+        0x774F8B0, 0x7751788, 0x77523C8, 0x775F87C, 0x7760498,
+        0x77604B8, 0x7790770, 0x78A1CC0, 0x78A1D00, 0x3D1851C,
+        0x3D185A4, 0x3D185AC, 0x3D2EA34, 0x3D30D00, 0x3D31D40,
+        0x3D33F4C, 0x3D33F54, 0x3D3E37C, 0x3D3E384, 0x3A03224,
+        0x3A16458, 0x3A1A948, 0xFB3820,  0x7871F5C, 0x7871FB8,
+        0x78721B0, 0x78723A8, 0x78727C8, 0x7872D38, 0x16EC2C0,
+        0x7876684, 0x78768B0, 0x111DB70, 0x7947C84, 0x794A95C,
+        0x79499AC, 0x794BB00, 0x794AC58
+    };
+    for (size_t i = 0; i < sizeof(p1_offsets) / sizeof(p1_offsets[0]); i++) {
+        PatchOffset(unity_base_addr, p1_offsets[i], ret8);
+    }
 
     const char* ret4 = "C0 03 5F D6";
-    uint64_t new_antiban_offsets[] = {
-        0x706D890, 0x706D914, 0x706D9CC, 0x706DAB0,
-        0x706DD14, 0x706E0A0, 0x706E21C, 0x706E304,
-        0x706E6BC, 0x706E754, 0x677FA8C, 0x546B08,
-        0x83B634,  0x5B61A0,  0x5B6380,  0x5B65CC,
-        0x5B6764
+    uint64_t p2_offsets[] = {
+        0x6A975D8, 0x6262450, 0x4E2DBBC, 0x8D2830,  0x8D28B8,
+        0x3DBDAC4, 0x378D94,  0x378D9C,  0x7D58360, 0x74FF808,
+        0x7502AB0, 0x76572D4, 0x765CC78, 0x7661474, 0x774EEC8,
+        0x775A310, 0x7790E40, 0x3D3E37C, 0x72AE46C, 0x735B4AC,
+        0x5B4A54C, 0xB9AE00
     };
-    
-    for (size_t i = 0; i < sizeof(new_antiban_offsets) / sizeof(new_antiban_offsets[0]); i++) {
-        PatchOffset(unity_base_addr, new_antiban_offsets[i], ret4);
+    for (size_t j = 0; j < sizeof(p2_offsets) / sizeof(p2_offsets[0]); j++) {
+        PatchOffset(unity_base_addr, p2_offsets[j], ret4);
     }
 }
 
@@ -101,96 +146,86 @@ void apply_antiban() {
     self.view.backgroundColor = [UIColor clearColor];
 
     // Khung Menu chính
-    mainBox = [[UIView alloc] initWithFrame:CGRectMake(40, 40, 270, 360)];
-    mainBox.backgroundColor = [UIColor colorWithWhite:0.12f alpha:0.95f];
+    mainBox = [[UIView alloc] initWithFrame:CGRectMake(50, 50, 260, 320)];
+    mainBox.backgroundColor = [UIColor colorWithWhite:0.1f alpha:0.9f];
     mainBox.layer.cornerRadius = 12;
     mainBox.layer.borderWidth = 1.5f;
     mainBox.layer.borderColor = [UIColor cyanColor].CGColor;
     [self.view addSubview:mainBox];
 
     // Tiêu đề Menu
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 250, 30)];
-    titleLabel.text = @"MOD BY ERI NGUYỄN";
+    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 240, 30)];
+    titleLabel.text = @"SHIN AOV MENU";
     titleLabel.textColor = [UIColor cyanColor];
-    titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    titleLabel.font = [UIFont boldSystemFontOfSize:16];
     titleLabel.textAlignment = NSTextAlignmentCenter;
     [mainBox addSubview:titleLabel];
 
-    // Danh sách tính năng kèm Antiban mới
-    NSArray *features = @[@"Antiban (Bật sơm)", @"1. Hack Map", @"2. Cam Xa 3 Nấc", @"3. Show Unit Địch", @"4. Show Lịch Sử Đấu", @"5. Ẩn Tia"];
+    // Thêm các tính năng (Switch)
+    NSArray *features = @[@"1. Hack Map", @"2. Cam Xa 3 Nấc", @"3. Show Unit Địch", @"4. Show Lịch Sử Đấu", @"5. Ẩn Tia"];
     for (int i = 0; i < features.count; i++) {
-        UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(15, 50 + (i * 45), 170, 30)];
+        UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(15, 55 + (i * 45), 160, 30)];
         lbl.text = features[i];
-        lbl.textColor = (i == 0) ? [UIColor greenColor] : [UIColor whiteColor];
-        lbl.font = [UIFont systemFontOfSize:12];
+        lbl.textColor = [UIColor whiteColor];
+        lbl.font = [UIFont systemFontOfSize:13];
         [mainBox addSubview:lbl];
 
-        UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(200, 50 + (i * 45), 0, 0)];
-        sw.tag = i; 
-        if (i == 0) [sw setOn:YES animated:NO]; // Mặc định bật Antiban
+        UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(190, 55 + (i * 45), 0, 0)];
+        sw.tag = i + 1;
         [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
         [mainBox addSubview:sw];
     }
 
-    // Nút đóng menu
+    // Nút ẩn/thu nhỏ menu
     UIButton *closeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    closeBtn.frame = CGRectMake(220, 10, 35, 30);
+    closeBtn.frame = CGRectMake(210, 10, 40, 30);
     [closeBtn setTitle:@"X" forState:UIControlStateNormal];
     [closeBtn setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
-    [closeBtn addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
+    [closeBtn addTarget:self action:@selector(toggleMenuMinimize) forControlEvents:UIControlEventTouchUpInside];
     [mainBox addSubview:closeBtn];
 
-    // Nút nổi mở menu
+    // Nút nổi mở menu (Floating Button)
     UIButton *floatBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-    floatBtn.frame = CGRectMake(15, 80, 45, 45);
+    floatBtn.frame = CGRectMake(20, 100, 50, 50);
     floatBtn.backgroundColor = [UIColor cyanColor];
     [floatBtn setTitle:@"MOD" forState:UIControlStateNormal];
     [floatBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
-    floatBtn.titleLabel.font = [UIFont boldSystemFontOfSize:12];
-    floatBtn.layer.cornerRadius = 22.5f;
+    floatBtn.layer.cornerRadius = 25;
     [floatBtn addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:floatBtn];
 }
 
 - (void)switchChanged:(UISwitch *)sender {
-    while (unity_base_addr == 0) {
-        unity_base_addr = get_image_slide_address("UnityFramework");
-        usleep(100000);
-    }
+    if (unity_base_addr == 0) return;
 
     switch (sender.tag) {
-        case 0: // Antiban mới
-            if (sender.on) {
-                apply_antiban();
-            }
-            break;
-        case 1: // Hack Map -> Map
+        case 1: // Hack Map
             if (sender.on) {
                 PatchOffset(unity_base_addr, 0x4A38100, "36 00 80 D2");
             } else {
-                PatchOffset(unity_base_addr, 0x4A38100, "9F 03 03 D5");
+                PatchOffset(unity_base_addr, 0x4A38100, "9F 03 03 D5"); // NOP / Khôi phục
             }
             break;
-        case 2: // Cam Xa 3 Nấc -> Cam xa
+        case 2: // Cam Xa
             if (sender.on) {
                 PatchOffset(unity_base_addr, 0x554B9EC, "20 00 80 52 C0 03 5F D6");
                 PatchOffset(unity_base_addr, 0x541142C, "00 00 A8 52 00 00 27 1E C0 03 5F D6");
                 PatchOffset(unity_base_addr, 0x550E2BC, "00 00 A8 52 00 00 27 1E C0 03 5F D6");
             }
             break;
-        case 3: // Show Unit Địch -> Show Unit
+        case 3: // Show Unit
             if (sender.on) {
                 PatchOffset(unity_base_addr, 0x5F1C394, "20 00 80 52 C0 03 5F D6");
                 PatchOffset(unity_base_addr, 0x6A6B798, "20 00 80 52 C0 03 5F D6");
                 PatchOffset(unity_base_addr, 0x6A6B8FC, "20 00 80 52 C0 03 5F D6");
             }
             break;
-        case 4: // Show Lịch Sử Đấu -> Show LSD
+        case 4: // Show LSD
             if (sender.on) {
                 PatchOffset(unity_base_addr, 0x5ADF5A8, "20 00 80 52 C0 03 5F D6");
             }
             break;
-        case 5: // Ẩn tia -> Ẩn tia
+        case 5: // Ẩn tia
             if (sender.on) {
                 PatchOffset(unity_base_addr, 0x5FBEC8C, "20 00 80 52 C0 03 5F D6");
             }
@@ -204,18 +239,22 @@ void apply_antiban() {
     mainBox.hidden = !mainBox.hidden;
 }
 
+- (void)toggleMenuMinimize {
+    mainBox.hidden = YES;
+}
+
 @end
 
-// Khởi tạo an toàn không bị Watchdog Kill
+// Hàm khởi tạo chính của thư viện
 __attribute__((constructor)) void init_ay_mod() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        unity_base_addr = get_image_slide_address("UnityFramework");
-        if (unity_base_addr != 0) {
-            apply_antiban();
-        }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        // Chạy Antiban tự động
+        apply_antiban();
     });
 
     dispatch_async(dispatch_get_main_queue(), ^{
+        // Tạo cửa sổ hiển thị menu nổi trên giao diện game
+        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
         menuWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
         menuWindow.windowLevel = UIWindowLevelAlert + 100;
         menuWindow.rootViewController = [[MenuViewController alloc] init];
