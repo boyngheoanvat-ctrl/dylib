@@ -11,6 +11,7 @@
 // Khai báo biến toàn cục cho Window Menu
 static UIWindow *menuWindow = nil;
 static uintptr_t unity_base_addr = 0;
+static BOOL isPatched = NO; // Biến kiểm tra xem đã patch mã hay chưa
 
 // Hàm lấy base address của UnityFramework
 uintptr_t get_image_slide_address(const char* image_name) {
@@ -71,7 +72,7 @@ void PatchOffset(uintptr_t base_addr, uint64_t offset, const char* hex_bytes) {
     RawCodePatch(target_addr, bytes, len);
 }
 
-// Tự động chạy Antiban ngầm
+// Hàm chạy Antiban sau khi đã đợi đủ thời gian
 void apply_antiban() {
     while (unity_base_addr == 0) {
         unity_base_addr = get_image_slide_address("UnityFramework");
@@ -131,6 +132,8 @@ void apply_antiban() {
     for (size_t j = 0; j < sizeof(p2_offsets) / sizeof(p2_offsets[0]); j++) {
         PatchOffset(unity_base_addr, p2_offsets[j], ret4);
     }
+    
+    isPatched = YES; // Đã patch xong
 }
 
 // Giao diện Menu nổi
@@ -139,42 +142,57 @@ void apply_antiban() {
 
 @implementation MenuViewController {
     UIView *mainBox;
+    UILabel *statusLabel;
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor clearColor];
 
-    mainBox = [[UIView alloc] initWithFrame:CGRectMake(50, 50, 260, 320)];
+    mainBox = [[UIView alloc] initWithFrame:CGRectMake(50, 50, 260, 340)];
     mainBox.backgroundColor = [UIColor colorWithWhite:0.1f alpha:0.9f];
     mainBox.layer.cornerRadius = 12;
     mainBox.layer.borderWidth = 1.5f;
     mainBox.layer.borderColor = [UIColor cyanColor].CGColor;
     [self.view addSubview:mainBox];
 
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 240, 30)];
+    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 240, 25)];
     titleLabel.text = @"MOD BY ERI NGUYỄN";
     titleLabel.textColor = [UIColor cyanColor];
-    titleLabel.font = [UIFont boldSystemFontOfSize:16];
+    titleLabel.font = [UIFont boldSystemFontOfSize:15];
     titleLabel.textAlignment = NSTextAlignmentCenter;
     [mainBox addSubview:titleLabel];
 
+    // Dòng trạng thái chờ 30 giây load mã
+    statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 35, 240, 20)];
+    statusLabel.text = @"Trạng thái: Đang chờ kích hoạt (30s)...";
+    statusLabel.textColor = [UIColor yellowColor];
+    statusLabel.font = [UIFont systemFontOfSize:10];
+    statusLabel.textAlignment = NSTextAlignmentCenter;
+    [mainBox addSubview:statusLabel];
+
+    // Cập nhật trạng thái sau khi hết 30s
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        statusLabel.text = @"Trạng thái: Antiban đã bật an toàn!";
+        statusLabel.textColor = [UIColor greenColor];
+    });
+
     NSArray *features = @[@"1. Hack Map", @"2. Cam Xa 3 Nấc", @"3. Show Unit Địch", @"4. Show Lịch Sử Đấu", @"5. Ẩn Tia"];
     for (int i = 0; i < features.count; i++) {
-        UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(15, 55 + (i * 45), 160, 30)];
+        UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(15, 65 + (i * 45), 160, 30)];
         lbl.text = features[i];
         lbl.textColor = [UIColor whiteColor];
         lbl.font = [UIFont systemFontOfSize:13];
         [mainBox addSubview:lbl];
 
-        UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(190, 55 + (i * 45), 0, 0)];
+        UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(190, 65 + (i * 45), 0, 0)];
         sw.tag = i + 1;
         [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
         [mainBox addSubview:sw];
     }
 
     UIButton *closeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    closeBtn.frame = CGRectMake(210, 10, 40, 30);
+    closeBtn.frame = CGRectMake(210, 5, 40, 30);
     [closeBtn setTitle:@"X" forState:UIControlStateNormal];
     [closeBtn setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
     [closeBtn addTarget:self action:@selector(toggleMenuMinimize) forControlEvents:UIControlEventTouchUpInside];
@@ -191,7 +209,11 @@ void apply_antiban() {
 }
 
 - (void)switchChanged:(UISwitch *)sender {
-    if (unity_base_addr == 0) return;
+    if (!isPatched || unity_base_addr == 0) {
+        // Nếu chưa qua 30s mà bật tính năng, hiện cảnh báo nhẹ
+        sender.on = NO;
+        return;
+    }
 
     switch (sender.tag) {
         case 1:
@@ -232,19 +254,19 @@ void apply_antiban() {
 
 @end
 
-// Hàm khởi tạo chính của thư viện với độ trễ 5 giây
+// Hàm khởi tạo chính: Menu hiện ngay lập tức, mã được trì hoãn 30 giây
 __attribute__((constructor)) void init_ay_mod() {
-    // Trì hoãn 5.0 giây cho Antiban
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        apply_antiban();
-    });
-
-    // Trì hoãn 5.3 giây hiển thị Menu UI
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    // 1. Hiện giao diện menu ngay lập tức khi mở game để người dùng thấy icon/menu
+    dispatch_async(dispatch_get_main_queue(), ^{
         UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
         menuWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
         menuWindow.windowLevel = UIWindowLevelAlert + 100;
         menuWindow.rootViewController = [[MenuViewController alloc] init];
         menuWindow.hidden = NO;
+    });
+
+    // 2. Trì hoãn toàn bộ tiến trình patch mã và Antiban đúng 30 giây ở luồng nền
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        apply_antiban();
     });
 }
