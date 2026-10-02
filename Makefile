@@ -1,17 +1,17 @@
-TARGET = eri
-ARCHS = arm64 arm64e
-INSTALL_TARGET_PROCESSES = YourGame
+# Cấu hình SDK và Compiler
+SDK = iphoneos
+CC = xcrun -sdk $(SDK) clang
+CFLAGS = -fobjc-arc -shared -undefined dynamic_lookup
+LDFLAGS = -framework Foundation -framework UIKit
 
-CC = clang
-CXX = clang++
-CFLAGS = -arch arm64 -arch arm64e -fPIC -shared -O2 -Wall
-LDFLAGS = -framework Foundation -framework UIKit -dynamiclib
+# Tên file nguồn (đổi thành eri.mm nếu file của bạn là eri.mm)
+SRC = eri.m
+TARGET = eri.dylib
 
-all: $(TARGET).dylib
+all: $(TARGET)
 
-$(TARGET).eri.dylib: eri.m
-	$(CXX) $(CFLAGS) eri.mm -o $(TARGET).dylib $(LDFLAGS)
-	@echo "✅ Xong: $(TARGET).dylib"
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
 
 clean:
-	rm -f $(TARGET).dylib
+	rm -f $(TARGET)
