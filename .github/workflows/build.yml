@@ -11,12 +11,15 @@ jobs:
 
       - name: Setup Theos
         run: |
-          # Xóa sạch thư mục theos cũ để tránh xung đột dữ liệu
+          # Xóa sạch toàn bộ thư mục theos và sdks cũ
           rm -rf ~/theos
           
-          # Clone mới hoàn toàn Theos kèm submodule và SDKs
+          # Clone Theos
           git clone --recursive https://github.com/theos/theos.git ~/theos
-          git clone https://github.com/theos/sdks.git ~/theos/sdks
+          
+          # Xóa phòng hờ thư mục sdks nếu lỡ bị tạo trước đó rồi mới clone
+          rm -rf ~/theos/sdks
+          git clone --depth 1 https://github.com/theos/sdks.git ~/theos/sdks
 
       - name: Build Dylib
         env:
