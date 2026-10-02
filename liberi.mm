@@ -7,6 +7,10 @@
 #import <string.h>
 #import "fishhook.h"
 
+// === TẮT CẢNH BÁO BỊ BÁO LỖI ===
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 // ==============================================
 // HÀM TRẢ VỀ
 // ==============================================
@@ -113,6 +117,9 @@ static void ShowMenu(void) {
     [w addSubview:g_menu.view];
     [UIView animateWithDuration:0.3 animations:^{ g_menu.view.alpha = 1; }];
 }
+
+// === KẾT THÚC TẮT CẢNH BÁO ===
+#pragma clang diagnostic pop
 
 // ==============================================
 // PATCH BYTE TRỰC TIẾP VÀO BỘ NHỚ
