@@ -1,385 +1,153 @@
-#import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
-#import <QuartzCore/QuartzCore.h>
-#import <mach/mach.h>
-#import <mach-o/dyld.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <mach-o/dyld.h>
+#include <mach/mach.h>
 
-#pragma mark - State
-
-static BOOL g_mapEnabled      = NO;
-static BOOL g_camXaEnabled    = NO;
-static BOOL g_showUnitEnabled = NO;
-static BOOL g_showLsdEnabled  = NO;
-static BOOL g_hideTiaEnabled  = NO;
-
-static UIWindow *g_overlayWindow = nil;
-static UIView *g_menuView = nil;
-static UIButton *g_floatingButton = nil;
-
-#pragma mark - Memory Patching Helpers
-
-void patch_rva_internal(const char *module, uintptr_t rva, const unsigned char *bytes, size_t len);
-
-static void patch_memory(void *addr, const void *data, size_t len) {
-    vm_address_t page_start = (vm_address_t)addr & ~(PAGE_SIZE - 1);
-    size_t page_len = (uintptr_t)addr - page_start + len;
-    
-    if (vm_protect(mach_task_self(), page_start, page_len, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE) != KERN_SUCCESS)
-        return;
-    memcpy(addr, data, len);
-    vm_protect(mach_task_self(), page_start, page_len, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-}
-
-static uintptr_t get_module_base(const char *module_name, intptr_t *out_slide) {
-    for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-        const char *name = _dyld_get_image_name(i);
-        if (name && strstr(name, module_name)) {
-            *out_slide = _dyld_get_image_vmaddr_slide(i);
+// Hàm lấy base address của UnityFramework trong bộ nhớ
+uintptr_t get_image_slide_address(const char* image_name) {
+    uint32_t count = _dyld_image_count();
+    for (uint32_t i = 0; i < count; i++) {
+        const char* name = _dyld_get_image_name(i);
+        if (name && strstr(name, image_name)) {
             return (uintptr_t)_dyld_get_image_header(i);
         }
     }
-    *out_slide = 0;
     return 0;
 }
 
-void patch_rva_internal(const char *module, uintptr_t rva, const unsigned char *bytes, size_t len) {
-    intptr_t slide;
-    uintptr_t base = get_module_base(module, &slide);
-    if (!base) return;
-    void *addr = (void*)(base + slide + rva);
-    patch_memory(addr, bytes, len);
-}
+// Hàm ghi đè bộ nhớ trực tiếp (Memory Patch) độc lập
+bool RawCodePatch(uintptr_t absolute_address, const void* patch_bytes, size_t length) {
+    if (absolute_address == 0) return false;
 
-#pragma mark - Antiban / Bypass Patches
-static void apply_antiban_patches(void) {
-    const unsigned char RET_8[] = {0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6};
-    const unsigned char RET_4[] = {0xC0, 0x03, 0x5F, 0xD6};
+    size_t page_size = sysconf(_SC_PAGESIZE);
+    uintptr_t page_start = (absolute_address & ~(page_size - 1));
 
-    #define P1(rva) patch_rva_internal("UnityFramework", rva, RET_8, sizeof(RET_8))
-    #define P2(rva) patch_rva_internal("UnityFramework", rva, RET_4, sizeof(RET_4))
-
-    P1(0x5CD0C04); P1(0x6A60228); P1(0x6A69CAC); P1(0x6A69D9C); P1(0x6AEB808);
-    P1(0x6DBC0B0); P1(0x6DBC0B4); P1(0x6DBC294); P1(0x6DBC298); P1(0x6DC59DC);
-    P1(0x6DCB8E8); P1(0x6E01E60); P1(0x705DB3C); P1(0x705DB38); P1(0x706D94C);
-    P1(0x706E30C); P1(0x706D9CC); P1(0x706E938); P1(0x70985BC); P1(0x7098624);
-    P1(0x7182C4C); P1(0x7182C50); P1(0x7182C54); P1(0x718370C); P1(0x71837B4);
-    P1(0x71838D4); P1(0x7267A24); P1(0x72D0C2C); P1(0x72D0C30); P1(0x5221798);
-    P1(0x5221818); P1(0x5221918); P1(0x5221998); P1(0x5221A18); P1(0x556CBD8);
-    P1(0x556CEA8); P1(0x556CFD4); P1(0x5682E38); P1(0x6179804); P1(0x6179A6C);
-    P1(0x6179C04); P1(0x6179DCC); P1(0x6179FAC); P1(0x617A270); P1(0x617A430);
-    P1(0x6230268); P1(0x6238C30); P1(0x62643FC); P1(0x627B2FC); P1(0x627C97C);
-    P1(0x6339604); P1(0x6460F74); P1(0x646A470); P1(0x6469AF0); P1(0x68FDBA4);
-    P1(0x69E2C0C); P1(0x4096CB0); P1(0x4384A98); P1(0x4386594); P1(0x43F1C5C);
-    P1(0x440F8E4); P1(0x4410D50); P1(0x5162A4);  P1(0x5162FC);  P1(0x5295F4);
-    P1(0x52964C); P1(0xB86780);  P1(0xB86808);  P1(0x3D60BA0); P1(0x3D69418);
-    P1(0x3F74DBC); P1(0x3F76240); P1(0x3F82444); P1(0x3DBDAC4); P1(0x3DC47FC);
-    P1(0x3DD3BB8); P1(0x3DE7260); P1(0x3DE75A8); P1(0x3E03488); P1(0x3E098B4);
-    P1(0x3E567D4); P1(0x3E586F0); P1(0x3E587F8); P1(0x3E58CB4); P1(0x3E5CC8C);
-    P1(0xF02F68);  P1(0xF02FC4);  P1(0xF03108);  P1(0xF031B8);  P1(0xF032B8);
-    P1(0xF03614);  P1(0xF037F0);  P1(0xF03BA0);  P1(0xF03E74);  P1(0xF03B3C);
-    P1(0xEF453C);  P1(0xF06610);  P1(0xF29E98);  P1(0xE88420);  P1(0xE88508);
-    P1(0xE885C0);  P1(0xE89224);  P1(0x74F80D4); P1(0x74FA6D8); P1(0x74FD2D0);
-    P1(0x74FD3A8); P1(0x74FEEB0); P1(0x7502784); P1(0x74FF808); P1(0x7502AB0);
-    P1(0x7502EA4); P1(0x7503400); P1(0x74FA46C); P1(0x750975C); P1(0x750A1EC);
-    P1(0x7509CE4); P1(0x76BCC3C); P1(0x76587A8); P1(0x76572D4); P1(0x765CC78);
-    P1(0x7661474); P1(0x7657494); P1(0x76FA234); P1(0x76FBE18); P1(0x7707DC8);
-    P1(0x7709690); P1(0x7713634); P1(0x77137A4); P1(0x774852C); P1(0x7749650);
-    P1(0x77539A0); P1(0x77539B0); P1(0x774EEC8); P1(0x774ED98); P1(0x774F7E0);
-    P1(0x774F8B0); P1(0x7751788); P1(0x77523C8); P1(0x775F87C); P1(0x7760498);
-    P1(0x77604B8); P1(0x7790770); P1(0x78A1CC0); P1(0x78A1D00); P1(0x3D1851C);
-    P1(0x3D185A4); P1(0x3D185AC); P1(0x3D2EA34); P1(0x3D30D00); P1(0x3D31D40);
-    P1(0x3D33F4C); P1(0x3D33F54); P1(0x3D3E37C); P1(0x3D3E384); P1(0x3A03224);
-    P1(0x3A16458); P1(0x3A1A948); P1(0xFB3820);  P1(0x7871F5C); P1(0x7871FB8);
-    P1(0x78721B0); P1(0x78723A8); P1(0x78727C8); P1(0x7872D38); P1(0x16EC2C0);
-    P1(0x7876684); P1(0x78768B0); P1(0x111DB70); P1(0x7947C84); P1(0x794A95C);
-    P1(0x79499AC); P1(0x794BB00); P1(0x794AC58);
-
-    P2(0x6A975D8); P2(0x6262450); P2(0x4E2DBBC); P2(0x8D2830);  P2(0x8D28B8);
-    P2(0x3DBDAC4); P2(0x378D94);  P2(0x378D9C);  P2(0x7D58360); P2(0x74FF808);
-    P2(0x7502AB0); P2(0x76572D4); P2(0x765CC78); P2(0x7661474); P2(0x774EEC8);
-    P2(0x775A310); P2(0x7790E40); P2(0x3D3E37C); P2(0x72AE46C); P2(0x735B4AC);
-    P2(0x5B4A54C); P2(0xB9AE00);
-}
-
-#pragma mark - Touch Window
-
-@interface ERITouchWindow : UIWindow
-@end
-
-@implementation ERITouchWindow
-
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
-{
-    if (self.hidden || self.alpha <= 0.01)
-        return nil;
-    UIView *hit = [super hitTest:point withEvent:event];
-    if (hit == self || hit == self.rootViewController.view) {
-        return nil;
+    if (mprotect((void*)page_start, page_size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+        return false;
     }
-    return hit;
+
+    memcpy((void*)absolute_address, patch_bytes, length);
+
+    mprotect((void*)page_start, page_size, PROT_READ | PROT_EXEC);
+    sys_cache_flush((void*)absolute_address, length);
+    return true;
 }
 
-@end
-
-#pragma mark - Manager
-
-@interface ERIManager : NSObject
-+ (instancetype)sharedInstance;
-- (void)toggleMenuVisibility:(id)sender;
-- (void)handleFloatingPan:(UIPanGestureRecognizer *)gesture;
-- (void)handleWindowPan:(UIPanGestureRecognizer *)gesture;
-- (void)toggleFeature:(UIButton *)sender;
-@end
-
-@implementation ERIManager
-
-+ (instancetype)sharedInstance
-{
-    static ERIManager *instance = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        instance = [[ERIManager alloc] init];
-    });
-    return instance;
-}
-
-- (void)toggleMenuVisibility:(id)sender
-{
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (!g_menuView) return;
-        g_menuView.hidden = !g_menuView.hidden;
-        if (!g_menuView.hidden) {
-            UIView *parent = g_menuView.superview;
-            if (parent) {
-                [parent bringSubviewToFront:g_menuView];
-                [parent bringSubviewToFront:g_floatingButton];
+// Hàm chuyển đổi chuỗi Hex thành mảng Byte
+void parseHexBytes(const char* hexStr, unsigned char* outBytes, size_t* outLen) {
+    size_t len = strlen(hexStr);
+    size_t count = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (hexStr[i] == ' ' || hexStr[i] == '\t') continue;
+        if (i + 1 < len) {
+            unsigned int byteVal;
+            if (sscanf(hexStr + i, "%2x", &byteVal) == 1) {
+                outBytes[count++] = (unsigned char)byteVal;
+                i++;
             }
         }
-    });
-}
-
-- (void)handleFloatingPan:(UIPanGestureRecognizer *)gesture
-{
-    UIView *button = gesture.view;
-    if (!button || !button.superview) return;
-    UIView *parent = button.superview;
-    CGPoint translation = [gesture translationInView:parent];
-    CGPoint center = button.center;
-    center.x += translation.x;
-    center.y += translation.y;
-    CGFloat halfW = button.bounds.size.width / 2.0;
-    CGFloat halfH = button.bounds.size.height / 2.0;
-    center.x = MAX(halfW, MIN(parent.bounds.size.width - halfW, center.x));
-    center.y = MAX(halfH, MIN(parent.bounds.size.height - halfH, center.y));
-    button.center = center;
-    [gesture setTranslation:CGPointZero inView:parent];
-}
-
-- (void)handleWindowPan:(UIPanGestureRecognizer *)gesture
-{
-    UIView *menu = g_menuView;
-    if (!menu || menu.hidden || !menu.superview) return;
-    UIView *parent = menu.superview;
-    CGPoint translation = [gesture translationInView:parent];
-    CGPoint center = menu.center;
-    center.x += translation.x;
-    center.y += translation.y;
-    CGFloat halfW = menu.bounds.size.width / 2.0;
-    CGFloat halfH = menu.bounds.size.height / 2.0;
-    center.x = MAX(halfW, MIN(parent.bounds.size.width - halfW, center.x));
-    center.y = MAX(halfH, MIN(parent.bounds.size.height - halfH, center.y));
-    menu.center = center;
-    [gesture setTranslation:CGPointZero inView:parent];
-}
-
-- (void)updateButton:(UIButton *)button title:(NSString *)title enabled:(BOOL)enabled
-{
-    NSString *text = [NSString stringWithFormat:@"[%@] %@", enabled ? @"x" : @" ", title];
-    [button setTitle:text forState:UIControlStateNormal];
-    if (enabled) {
-        button.backgroundColor = [UIColor colorWithRed:0.20 green:0.45 blue:0.25 alpha:1.0];
-    } else {
-        button.backgroundColor = [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
     }
+    *outLen = count;
 }
 
-#pragma mark Feature Toggle (Fixed Direct Patch)
+// Hàm thực hiện patch dựa trên offset và chuỗi mã máy hex
+void PatchOffset(uintptr_t base_addr, uint64_t offset, const char* hex_bytes) {
+    if (base_addr == 0) return;
+    uintptr_t target_addr = base_addr + offset;
+    
+    unsigned char bytes[256];
+    size_t len = 0;
+    parseHexBytes(hex_bytes, bytes, &len);
+    
+    RawCodePatch(target_addr, bytes, len);
+}
 
-- (void)toggleFeature:(UIButton *)sender
-{
-    if (!sender) return;
-
-    switch (sender.tag) {
-        case 1:
-        {
-            g_mapEnabled = !g_mapEnabled;
-            [self updateButton:sender title:@"MAP" enabled:g_mapEnabled];
-            if (g_mapEnabled) {
-                const unsigned char MAP_ON[] = {0x36, 0x00, 0x80, 0xD2};
-                patch_rva_internal("UnityFramework", 0x4A38100, MAP_ON, 4);
-            }
-        }
-        break;
-
-        case 2:
-        {
-            g_camXaEnabled = !g_camXaEnabled;
-            [self updateButton:sender title:@"CAM XA" enabled:g_camXaEnabled];
-            if (g_camXaEnabled) {
-                const unsigned char CAM1_ON[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-                const unsigned char CAM2_ON[] = {0x00, 0x00, 0xA8, 0x52, 0x00, 0x00, 0x27, 0x1E, 0xC0, 0x03, 0x5F, 0xD6};
-                patch_rva_internal("UnityFramework", 0x554B9EC, CAM1_ON, 8);
-                patch_rva_internal("UnityFramework", 0x541142C, CAM2_ON, 12);
-                patch_rva_internal("UnityFramework", 0x550E2BC, CAM2_ON, 12);
-            }
-        }
-        break;
-
-        case 3:
-        {
-            g_showUnitEnabled = !g_showUnitEnabled;
-            [self updateButton:sender title:@"SHOW UNIT" enabled:g_showUnitEnabled];
-            if (g_showUnitEnabled) {
-                const unsigned char UNIT_ON[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-                patch_rva_internal("UnityFramework", 0x5F1C394, UNIT_ON, 8);
-                patch_rva_internal("UnityFramework", 0x6A6B798, UNIT_ON, 8);
-                patch_rva_internal("UnityFramework", 0x6A6B8FC, UNIT_ON, 8);
-            }
-        }
-        break;
-
-        case 4:
-        {
-            g_showLsdEnabled = !g_showLsdEnabled;
-            [self updateButton:sender title:@"SHOW LSD" enabled:g_showLsdEnabled];
-            if (g_showLsdEnabled) {
-                const unsigned char LSD_ON[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-                patch_rva_internal("UnityFramework", 0x5ADF5A8, LSD_ON, 8);
-            }
-        }
-        break;
-
-        case 5:
-        {
-            g_hideTiaEnabled = !g_hideTiaEnabled;
-            [self updateButton:sender title:@"ẨN TIA" enabled:g_hideTiaEnabled];
-            if (g_hideTiaEnabled) {
-                const unsigned char TIA_ON[] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
-                patch_rva_internal("UnityFramework", 0x5FBEC8C, TIA_ON, 8);
-            }
-        }
-        break;
-
-        default:
-            break;
+// Hàm chính chạy tự động khi file .dylib được load vào game
+__attribute__((constructor)) void init_ay_mod() {
+    uintptr_t unity_base = 0;
+    while (unity_base == 0) {
+        unity_base = get_image_slide_address("UnityFramework");
+        usleep(100000); // Đợi module sẵn sàng
     }
-}
 
-@end
+    // 1. Danh sách Antiban - Nhóm 8 bytes (RET_8: 00 00 80 D2 C0 03 5F D6)
+    const char* ret8 = "00 00 80 D2 C0 03 5F D6";
+    uint64_t p1_offsets[] = {
+        0x5CD0C04, 0x6A60228, 0x6A69CAC, 0x6A69D9C, 0x6AEB808,
+        0x6DBC0B0, 0x6DBC0B4, 0x6DBC294, 0x6DBC298, 0x6DC59DC,
+        0x6DCB8E8, 0x6E01E60, 0x705DB3C, 0x705DB38, 0x706D94C,
+        0x706E30C, 0x706D9CC, 0x706E938, 0x70985BC, 0x7098624,
+        0x7182C4C, 0x7182C50, 0x7182C54, 0x718370C, 0x71837B4,
+        0x71838D4, 0x7267A24, 0x72D0C2C, 0x72D0C30, 0x5221798,
+        0x5221818, 0x5221918, 0x5221998, 0x5221A18, 0x556CBD8,
+        0x556CEA8, 0x556CFD4, 0x5682E38, 0x6179804, 0x6179A6C,
+        0x6179C04, 0x6179DCC, 0x6179FAC, 0x617A270, 0x617A430,
+        0x6230268, 0x6238C30, 0x62643FC, 0x627B2FC, 0x627C97C,
+        0x6339604, 0x6460F74, 0x646A470, 0x6469AF0, 0x68FDBA4,
+        0x69E2C0C, 0x4096CB0, 0x4384A98, 0x4386594, 0x43F1C5C,
+        0x440F8E4, 0x4410D50, 0x5162A4,  0x5162FC,  0x5295F4,
+        0x52964C, 0xB86780,  0xB86808,  0x3D60BA0, 0x3D69418,
+        0x3F74DBC, 0x3F76240, 0x3F82444, 0x3DBDAC4, 0x3DC47FC,
+        0x3DD3BB8, 0x3DE7260, 0x3DE75A8, 0x3E03488, 0x3E098B4,
+        0x3E567D4, 0x3E586F0, 0x3E587F8, 0x3E58CB4, 0x3E5CC8C,
+        0xF02F68,  0xF02FC4,  0xF03108,  0xF031B8,  0xF032B8,
+        0xF03614,  0xF037F0,  0xF03BA0,  0xF03E74,  0xF03B3C,
+        0xEF453C,  0xF06610,  0xF29E98,  0xE88420,  0xE88508,
+        0xE885C0,  0xE89224,  0x74F80D4, 0x74FA6D8, 0x74FD2D0,
+        0x74FD3A8, 0x74FEEB0, 0x7502784, 0x74FF808, 0x7502AB0,
+        0x7502EA4, 0x7503400, 0x74FA46C, 0x750975C, 0x750A1EC,
+        0x7509CE4, 0x76BCC3C, 0x76587A8, 0x76572D4, 0x765CC78,
+        0x7661474, 0x7657494, 0x76FA234, 0x76FBE18, 0x7707DC8,
+        0x7709690, 0x7713634, 0x77137A4, 0x774852C, 0x7749650,
+        0x77539A0, 0x77539B0, 0x774EEC8, 0x774ED98, 0x774F7E0,
+        0x774F8B0, 0x7751788, 0x77523C8, 0x775F87C, 0x7760498,
+        0x77604B8, 0x7790770, 0x78A1CC0, 0x78A1D00, 0x3D1851C,
+        0x3D185A4, 0x3D185AC, 0x3D2EA34, 0x3D30D00, 0x3D31D40,
+        0x3D33F4C, 0x3D33F54, 0x3D3E37C, 0x3D3E384, 0x3A03224,
+        0x3A16458, 0x3A1A948, 0xFB3820,  0x7871F5C, 0x7871FB8,
+        0x78721B0, 0x78723A8, 0x78727C8, 0x7872D38, 0x16EC2C0,
+        0x7876684, 0x78768B0, 0x111DB70, 0x7947C84, 0x794A95C,
+        0x79499AC, 0x794BB00, 0x794AC58
+    };
+    for (size_t i = 0; i < sizeof(p1_offsets) / sizeof(p1_offsets[0]); i++) {
+        PatchOffset(unity_base, p1_offsets[i], ret8);
+    }
 
-#pragma mark - Menu Creation
+    // 2. Danh sách Antiban - Nhóm 4 bytes (RET_4: C0 03 5F D6)
+    const char* ret4 = "C0 03 5F D6";
+    uint64_t p2_offsets[] = {
+        0x6A975D8, 0x6262450, 0x4E2DBBC, 0x8D2830,  0x8D28B8,
+        0x3DBDAC4, 0x378D94,  0x378D9C,  0x7D58360, 0x74FF808,
+        0x7502AB0, 0x76572D4, 0x765CC78, 0x7661474, 0x774EEC8,
+        0x775A310, 0x7790E40, 0x3D3E37C, 0x72AE46C, 0x735B4AC,
+        0x5B4A54C, 0xB9AE00
+    };
+    for (size_t j = 0; j < sizeof(p2_offsets) / sizeof(p2_offsets[0]); j++) {
+        PatchOffset(unity_base, p2_offsets[j], ret4);
+    }
 
-static UIButton *ERI_CreateButton(NSString *title, NSInteger tag, CGRect frame, ERIManager *manager)
-{
-    UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
-    button.frame = frame;
-    button.tag = tag;
-    button.backgroundColor = [UIColor colorWithRed:0.20 green:0.20 blue:0.22 alpha:1.0];
-    button.layer.cornerRadius = 3.0;
-    button.layer.borderWidth = 0.5;
-    button.layer.borderColor = [UIColor colorWithRed:0.35 green:0.35 blue:0.38 alpha:1.0].CGColor;
-    [button setTitle:[NSString stringWithFormat:@"[ ] %@", title] forState:UIControlStateNormal];
-    [button setTitleColor:[UIColor colorWithRed:0.90 green:0.90 blue:0.90 alpha:1.0] forState:UIControlStateNormal];
-    button.titleLabel.font = [UIFont boldSystemFontOfSize:11.0];
-    button.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-    button.titleEdgeInsets = UIEdgeInsetsMake(0, 8, 0, 0);
-    [button addTarget:manager action:@selector(toggleFeature:) forControlEvents:UIControlEventTouchUpInside];
-    return button;
-}
+    // 3. Các tính năng trong game
+    // Map
+    PatchOffset(unity_base, 0x4A38100, "36 00 80 D2");
 
-#pragma mark - Setup
+    // Cam xa
+    PatchOffset(unity_base, 0x554B9EC, "20 00 80 52 C0 03 5F D6");
+    PatchOffset(unity_base, 0x541142C, "00 00 A8 52 00 00 27 1E C0 03 5F D6");
+    PatchOffset(unity_base, 0x550E2BC, "00 00 A8 52 00 00 27 1E C0 03 5F D6");
 
-static void setup_eri_menu(void)
-{
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (g_overlayWindow) {
-            g_overlayWindow.hidden = NO;
-            return;
-        }
-        CGRect screenBounds = [UIScreen mainScreen].bounds;
-        g_overlayWindow = [[ERITouchWindow alloc] initWithFrame:screenBounds];
-        g_overlayWindow.backgroundColor = UIColor.clearColor;
-        g_overlayWindow.opaque = NO;
-        g_overlayWindow.windowLevel = UIWindowLevelAlert + 1;
-        UIViewController *rootVC = [[UIViewController alloc] init];
-        rootVC.view.backgroundColor = UIColor.clearColor;
-        g_overlayWindow.rootViewController = rootVC;
-        g_overlayWindow.hidden = NO;
+    // Show Unit
+    PatchOffset(unity_base, 0x5F1C394, "20 00 80 52 C0 03 5F D6");
+    PatchOffset(unity_base, 0x6A6B798, "20 00 80 52 C0 03 5F D6");
+    PatchOffset(unity_base, 0x6A6B8FC, "20 00 80 52 C0 03 5F D6");
 
-        ERIManager *manager = [ERIManager sharedInstance];
-        UIView *container = rootVC.view;
+    // Show LSD
+    PatchOffset(unity_base, 0x5ADF5A8, "20 00 80 52 C0 03 5F D6");
 
-        g_menuView = [[UIView alloc] initWithFrame:CGRectMake(100, 100, 220, 260)];
-        g_menuView.backgroundColor = [UIColor colorWithRed:0.06 green:0.06 blue:0.07 alpha:0.96];
-        g_menuView.layer.cornerRadius = 5.0;
-        g_menuView.layer.borderWidth = 1.0;
-        g_menuView.layer.borderColor = [UIColor colorWithRed:0.25 green:0.25 blue:0.28 alpha:1.0].CGColor;
-        g_menuView.clipsToBounds = YES;
-        g_menuView.hidden = YES;
-        [container addSubview:g_menuView];
-
-        UIView *titleBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 220, 28)];
-        titleBar.backgroundColor = [UIColor colorWithRed:0.16 green:0.16 blue:0.18 alpha:1.0];
-        titleBar.userInteractionEnabled = YES;
-
-        UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(8, 0, 204, 28)];
-        title.text = @"ERI MOD MENU v1.0";
-        title.textColor = [UIColor colorWithRed:0.88 green:0.88 blue:0.90 alpha:1.0];
-        title.font = [UIFont boldSystemFontOfSize:11.0];
-        title.userInteractionEnabled = NO;
-        [titleBar addSubview:title];
-        [g_menuView addSubview:titleBar];
-
-        UIPanGestureRecognizer *menuPan = [[UIPanGestureRecognizer alloc] initWithTarget:manager action:@selector(handleWindowPan:)];
-        [titleBar addGestureRecognizer:menuPan];
-
-        CGFloat x = 10.0;
-        CGFloat y = 36.0;
-        CGFloat w = 200.0;
-        CGFloat h = 30.0;
-
-        NSArray *names = @[@"MAP", @"CAM XA", @"SHOW UNIT", @"SHOW LSD", @"ẨN TIA"];
-        for (NSInteger i = 0; i < names.count; i++) {
-            UIButton *button = ERI_CreateButton(names[i], i + 1, CGRectMake(x, y, w, h), manager);
-            [g_menuView addSubview:button];
-            y += 36.0;
-        }
-
-        g_floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        g_floatingButton.frame = CGRectMake(30, 100, 44, 44);
-        g_floatingButton.backgroundColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.12 alpha:0.92];
-        [g_floatingButton setTitle:@"ERI" forState:UIControlStateNormal];
-        [g_floatingButton setTitleColor:[UIColor colorWithRed:0.20 green:0.75 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
-        g_floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:11.0];
-        g_floatingButton.layer.cornerRadius = 22.0;
-        g_floatingButton.layer.borderWidth = 1.0;
-        g_floatingButton.layer.borderColor = [UIColor colorWithRed:0.30 green:0.30 blue:0.35 alpha:1.0].CGColor;
-        [container addSubview:g_floatingButton];
-
-        [g_floatingButton addTarget:manager action:@selector(toggleMenuVisibility:) forControlEvents:UIControlEventTouchUpInside];
-        UIPanGestureRecognizer *floatingPan = [[UIPanGestureRecognizer alloc] initWithTarget:manager action:@selector(handleFloatingPan:)];
-        [g_floatingButton addGestureRecognizer:floatingPan];
-        [container bringSubviewToFront:g_floatingButton];
-    });
-}
-
-#pragma mark - Entry
-
-__attribute__((constructor))
-static void eri_init(void)
-{
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        apply_antiban_patches();
-        setup_eri_menu();
-    });
+    // Ẩn tia
+    PatchOffset(unity_base, 0x5FBEC8C, "20 00 80 52 C0 03 5F D6");
 }
