@@ -17,7 +17,12 @@ jobs:
           git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
-      - name: Build
+      - name: Update Theos — Tải đầy đủ thư viện
+        run: |
+          export THEOS=$HOME/theos
+          $THEOS/bin/update-theos
+
+      - name: Build project
         run: |
           export THEOS=$HOME/theos
           make clean
