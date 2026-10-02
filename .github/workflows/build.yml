@@ -17,16 +17,16 @@ jobs:
           git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
-      - name: Install ldid — cách chắc chắn
+      - name: Install ldid — Link chính thức
         run: |
-          # Cách 1: Tải trực tiếp từ nguồn Theos
-          curl -fsSL "https://raw.githubusercontent.com/theos/theos/master/bin/ldid" -o $HOME/ldid
+          # macOS runner là x86_64 → chọn bản đúng
+          curl -L "https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_macosx_x86_64" -o $HOME/ldid
           chmod +x $HOME/ldid
           echo "$HOME" >> $GITHUB_PATH
           
           # Kiểm tra
-          ls -la $HOME/ldid
           file $HOME/ldid
+          $HOME/ldid -V
 
       - name: Update Theos
         run: |
