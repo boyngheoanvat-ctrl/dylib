@@ -7,6 +7,7 @@
 #include <sys/mman.h>
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
+#include <libkern/OSCacheControl.h> // Thêm header hỗ trợ clear cache chuẩn trên iOS
 
 static UIWindow *menuWindow = nil;
 static uintptr_t unity_base_addr = 0;
@@ -35,7 +36,10 @@ bool RawCodePatch(uintptr_t absolute_address, const void* patch_bytes, size_t le
     memcpy((void*)absolute_address, patch_bytes, length);
 
     mprotect((void*)page_start, page_size, PROT_READ | PROT_EXEC);
-    __builtin___clear_cache((char*)absolute_address, (char*)absolute_address + length);
+    
+    // Sử dụng hàm chuẩn của iOS để clear cache instruction thay cho builtin cũ
+    sys_cache_control(kCacheFunctionPrepareForExecution, (void*)absolute_address, length);
+    
     return true;
 }
 
