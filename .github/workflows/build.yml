@@ -19,13 +19,8 @@ jobs:
 
       - name: Install ldid & fix config
         run: |
-          # Tải ldid chính xác
           curl -L "https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_macosx_x86_64" -o $HOME/theos/bin/ldid
           chmod +x $HOME/theos/bin/ldid
-          
-          # === QUAN TRỌNG: Dùng -s thay vì -S ===
-          # -S = cần file entitlements → lỗi
-          # -s = ký đơn giản, không cần file → chạy được ✅
           mkdir -p $HOME/.theos
           echo 'TARGET_CODESIGN_FLAGS = -s' >> $HOME/.theosrc
 
@@ -40,11 +35,13 @@ jobs:
           make clean
           make
 
-      - name: Verify dylib exists
-        run: ls -lh .theos/obj/arm64/liberi.dylib
+      - name: Tìm file dylib — xem nó ở đâu
+        run: |
+          find .theos -name "liberi.dylib" -type f
+          ls -R .theos/obj/
 
-      - name: Upload dylib
+      - name: Upload dylib — ĐÚNG ĐƯỜNG DẪN
         uses: actions/upload-artifact@v4
         with:
           name: liberi.dylib
-          path: .theos/obj/arm64/liberi.dylib
+          path: .theos/obj/debug/arm64/liberi.dylib
