@@ -23,7 +23,7 @@ uintptr_t get_image_slide_address(const char* image_name) {
     return 0;
 }
 
-// Hàm ghi đè bộ nhớ an toàn (tránh crash game)
+// Hàm ghi đè bộ nhớ an toàn
 bool RawCodePatch(uintptr_t absolute_address, const void* patch_bytes, size_t length) {
     if (absolute_address == 0) return false;
 
@@ -70,62 +70,21 @@ void PatchOffset(uintptr_t base_addr, uint64_t offset, const char* hex_bytes) {
     RawCodePatch(target_addr, bytes, len);
 }
 
-// Hàm kích hoạt Antiban an toàn
+// Hàm kích hoạt Antiban mới gọn nhẹ
 void apply_antiban() {
     if (unity_base_addr == 0) return;
 
-    const char* ret8 = "00 00 80 D2 C0 03 5F D6";
-    uint64_t p1_offsets[] = {
-        0x5CD0C04, 0x6A60228, 0x6A69CAC, 0x6A69D9C, 0x6AEB808,
-        0x6DBC0B0, 0x6DBC0B4, 0x6DBC294, 0x6DBC298, 0x6DC59DC,
-        0x6DCB8E8, 0x6E01E60, 0x705DB3C, 0x705DB38, 0x706D94C,
-        0x706E30C, 0x706D9CC, 0x706E938, 0x70985BC, 0x7098624,
-        0x7182C4C, 0x7182C50, 0x7182C54, 0x718370C, 0x71837B4,
-        0x71838D4, 0x7267A24, 0x72D0C2C, 0x72D0C30, 0x5221798,
-        0x5221818, 0x5221918, 0x5221998, 0x5221A18, 0x556CBD8,
-        0x556CEA8, 0x556CFD4, 0x5682E38, 0x6179804, 0x6179A6C,
-        0x6179C04, 0x6179DCC, 0x6179FAC, 0x617A270, 0x617A430,
-        0x6230268, 0x6238C30, 0x62643FC, 0x627B2FC, 0x627C97C,
-        0x6339604, 0x6460F74, 0x646A470, 0x6469AF0, 0x68FDBA4,
-        0x69E2C0C, 0x4096CB0, 0x4384A98, 0x4386594, 0x43F1C5C,
-        0x440F8E4, 0x4410D50, 0x5162A4,  0x5162FC,  0x5295F4,
-        0x52964C, 0xB86780,  0xB86808,  0x3D60BA0, 0x3D69418,
-        0x3F74DBC, 0x3F76240, 0x3F82444, 0x3DBDAC4, 0x3DC47FC,
-        0x3DD3BB8, 0x3DE7260, 0x3DE75A8, 0x3E03488, 0x3E098B4,
-        0x3E567D4, 0x3E586F0, 0x3E587F8, 0x3E58CB4, 0x3E5CC8C,
-        0xF02F68,  0xF02FC4,  0xF03108,  0xF031B8,  0xF032B8,
-        0xF03614,  0xF037F0,  0xF03BA0,  0xF03E74,  0xF03B3C,
-        0xEF453C,  0xF06610,  0xF29E98,  0xE88420,  0xE88508,
-        0xE885C0,  0xE89224,  0x74F80D4, 0x74FA6D8, 0x74FD2D0,
-        0x74FD3A8, 0x74FEEB0, 0x7502784, 0x74FF808, 0x7502AB0,
-        0x7502EA4, 0x7503400, 0x74FA46C, 0x750975C, 0x750A1EC,
-        0x7509CE4, 0x76BCC3C, 0x76587A8, 0x76572D4, 0x765CC78,
-        0x7661474, 0x7657494, 0x76FA234, 0x76FBE18, 0x7707DC8,
-        0x7709690, 0x7713634, 0x77137A4, 0x774852C, 0x7749650,
-        0x77539A0, 0x77539B0, 0x774EEC8, 0x774ED98, 0x774F7E0,
-        0x774F8B0, 0x7751788, 0x77523C8, 0x775F87C, 0x7760498,
-        0x77604B8, 0x7790770, 0x78A1CC0, 0x78A1D00, 0x3D1851C,
-        0x3D185A4, 0x3D185AC, 0x3D2EA34, 0x3D30D00, 0x3D31D40,
-        0x3D33F4C, 0x3D33F54, 0x3D3E37C, 0x3D3E384, 0x3A03224,
-        0x3A16458, 0x3A1A948, 0xFB3820,  0x7871F5C, 0x7871FB8,
-        0x78721B0, 0x78723A8, 0x78727C8, 0x7872D38, 0x16EC2C0,
-        0x7876684, 0x78768B0, 0x111DB70, 0x7947C84, 0x794A95C,
-        0x79499AC, 0x794BB00, 0x794AC58
-    };
-    for (size_t i = 0; i < sizeof(p1_offsets) / sizeof(p1_offsets[0]); i++) {
-        PatchOffset(unity_base_addr, p1_offsets[i], ret8);
-    }
-
     const char* ret4 = "C0 03 5F D6";
-    uint64_t p2_offsets[] = {
-        0x6A975D8, 0x6262450, 0x4E2DBBC, 0x8D2830,  0x8D28B8,
-        0x3DBDAC4, 0x378D94,  0x378D9C,  0x7D58360, 0x74FF808,
-        0x7502AB0, 0x76572D4, 0x765CC78, 0x7661474, 0x774EEC8,
-        0x775A310, 0x7790E40, 0x3D3E37C, 0x72AE46C, 0x735B4AC,
-        0x5B4A54C, 0xB9AE00
+    uint64_t new_antiban_offsets[] = {
+        0x706D890, 0x706D914, 0x706D9CC, 0x706DAB0,
+        0x706DD14, 0x706E0A0, 0x706E21C, 0x706E304,
+        0x706E6BC, 0x706E754, 0x677FA8C, 0x546B08,
+        0x83B634,  0x5B61A0,  0x5B6380,  0x5B65CC,
+        0x5B6764
     };
-    for (size_t j = 0; j < sizeof(p2_offsets) / sizeof(p2_offsets[0]); j++) {
-        PatchOffset(unity_base_addr, p2_offsets[j], ret4);
+    
+    for (size_t i = 0; i < sizeof(new_antiban_offsets) / sizeof(new_antiban_offsets[0]); i++) {
+        PatchOffset(unity_base_addr, new_antiban_offsets[i], ret4);
     }
 }
 
@@ -157,7 +116,7 @@ void apply_antiban() {
     titleLabel.textAlignment = NSTextAlignmentCenter;
     [mainBox addSubview:titleLabel];
 
-    // Danh sách tính năng kèm Antiban
+    // Danh sách tính năng kèm Antiban mới
     NSArray *features = @[@"Antiban (Bật sơm)", @"1. Hack Map", @"2. Cam Xa 3 Nấc", @"3. Show Unit Địch", @"4. Show Lịch Sử Đấu", @"5. Ẩn Tia"];
     for (int i = 0; i < features.count; i++) {
         UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(15, 50 + (i * 45), 170, 30)];
@@ -167,8 +126,8 @@ void apply_antiban() {
         [mainBox addSubview:lbl];
 
         UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(200, 50 + (i * 45), 0, 0)];
-        sw.tag = i; // Tag 0 là Antiban, 1-5 là chức năng
-        if (i == 0) [sw setOn:YES animated:NO]; // Mặc định bật Antiban sẵn
+        sw.tag = i; 
+        if (i == 0) [sw setOn:YES animated:NO]; // Mặc định bật Antiban
         [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
         [mainBox addSubview:sw];
     }
@@ -200,7 +159,7 @@ void apply_antiban() {
     }
 
     switch (sender.tag) {
-        case 0: // Antiban
+        case 0: // Antiban mới
             if (sender.on) {
                 apply_antiban();
             }
@@ -251,7 +210,6 @@ void apply_antiban() {
 __attribute__((constructor)) void init_ay_mod() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         unity_base_addr = get_image_slide_address("UnityFramework");
-        // Tự động chạy Antiban ngầm sau khi game đã load xong base
         if (unity_base_addr != 0) {
             apply_antiban();
         }
