@@ -1,15 +1,22 @@
-SDK = iphoneos
-CC = xcrun -sdk $(SDK) clang
-CFLAGS = -fobjc-arc -shared -undefined dynamic_lookup
-LDFLAGS = -framework Foundation -framework UIKit
+TARGET := iphone:clang:latest:14.0
+ARCHS := arm64
 
-SRC = liberi.mm
-TARGET = eri.dylib
+LIBRARY_NAME = eri
 
-all: $(TARGET)
+eri_FILES = liberi.mm
+eri_CFLAGS = -fobjc-arc -std=c++11
+eri_LDFLAGS += -lc++ \
+               -framework Foundation \
+               -framework UIKit \
+               -framework CoreFoundation \
+               -framework Security \
+               -framework QuartzCore \
+               -framework CoreGraphics \
+               -framework CoreText \
+               -framework AVFoundation \
+               -framework Accelerate \
+               -framework Metal \
+               -framework MetalKit
 
-$(TARGET): $(SRC)
-	$(CC) $(CFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
-
-clean:
-	rm -f $(TARGET)
+include $(THEOS)/makefiles/common.mk
+include $(THEOS_MAKE_PATH)/library.mk
