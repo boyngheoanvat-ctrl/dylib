@@ -6,7 +6,7 @@
 #import <objc/runtime.h>
 #import <string.h>
 #import <libkern/OSCacheControl.h>
-#import "fishhook/fishhook.h"
+#import "fishhook.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -14,7 +14,7 @@
 #pragma clang diagnostic ignored "-Wunused-variable"
 
 // ==============================================
-// BIẾN TOÀN CỤC — CÁC CÔNG TẮC
+// CÁC CÔNG TẮC
 // ==============================================
 static BOOL g_Enabled_Map        = NO;
 static BOOL g_Enabled_CamXa      = NO;
@@ -27,7 +27,7 @@ static UIButton *g_showBtn = nil;
 static CGPoint g_touchStartPos;
 
 // ==============================================
-// LẤY WINDOW CHÍNH
+// LẤY WINDOW
 // ==============================================
 static UIWindow* GetKeyWindow(void) {
     UIApplication *app = [UIApplication sharedApplication];
@@ -79,7 +79,7 @@ static UIWindow* GetKeyWindow(void) {
     self.layer.cornerRadius = 0;
     self.frame = CGRectMake(15, 100, 280, 360);
     
-    // === Thanh tiêu đề ===
+    // Thanh tiêu đề
     self.titleBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 280, 34)];
     self.titleBar.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.12 alpha:1];
     [self addSubview:self.titleBar];
@@ -99,7 +99,7 @@ static UIWindow* GetKeyWindow(void) {
     [hideBtn addTarget:self action:@selector(onMinimize) forControlEvents:UIControlEventTouchUpInside];
     [self.titleBar addSubview:hideBtn];
     
-    // === Các mục công tắc ===
+    // Các mục
     CGFloat y = 50;
     [self addToggle:@"Bản đồ toàn cảnh"   y:&y val:&g_Enabled_Map        sel:@selector(toggled:)];
     [self addToggle:@"Tầm nhìn xa"        y:&y val:&g_Enabled_CamXa      sel:@selector(toggled:)];
@@ -143,7 +143,7 @@ static UIWindow* GetKeyWindow(void) {
     *y += h + 8;
 }
 
-// === KÉO DI CHUYỂN ===
+// Kéo di chuyển
 - (void)setupDrag {
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
     [self.titleBar addGestureRecognizer:pan];
@@ -160,7 +160,7 @@ static UIWindow* GetKeyWindow(void) {
     }
 }
 
-// === KÉO GIÃN TO/NHỎ ===
+// Kéo giãn to/nhỏ
 - (void)setupResize {
     self.resizeHandle = [[UIView alloc] initWithFrame:CGRectMake(self.bounds.size.width - 24, self.bounds.size.height - 24, 24, 24)];
     self.resizeHandle.backgroundColor = [UIColor clearColor];
@@ -220,7 +220,7 @@ static UIWindow* GetKeyWindow(void) {
 @end
 
 // ==============================================
-// NÚT HIỆN LẠI MENU
+// NÚT HIỆN LẠI
 // ==============================================
 static void SetupShowButton(void) {
     if (g_showBtn) return;
@@ -320,11 +320,8 @@ struct PatchEntry {
     BOOL *flag;
 };
 
-// ==============================================
-// ⚠️ ĐỊA CHỈ CẦN CẬP NHẬT CHO 1.64.11768577
-// ==============================================
+// ⚠️ CẦN THAY 0x00000000 BẰNG ĐỊA CHỈ THẬT SAU KHI PHÂN TÍCH
 static const struct PatchEntry g_patches[] = {
-    // TODO: Thay 0x00000000 bằng địa chỉ thật sau khi phân tích UnityFramework
     {"UnityFramework", 0x00000000, MAP_ON,       MAP_OFF,       4,  &g_Enabled_Map},
     {"UnityFramework", 0x00000000, CAM_ON,        CAM_OFF,       8,  &g_Enabled_CamXa},
     {"UnityFramework", 0x00000000, RET_TRUE,     RET_FALSE,     8,  &g_Enabled_Unti},
@@ -352,7 +349,7 @@ static void ApplyPatches(void) {
 }
 
 // ==============================================
-// ẨN DẤU VẾT — libsupport.dylib
+// ẨN DẤU VẾT
 // ==============================================
 static int (*orig_access)(const char *, int) = NULL;
 static int hk_access(const char *path, int mode) {
