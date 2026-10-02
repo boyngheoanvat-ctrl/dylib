@@ -232,14 +232,15 @@ void apply_antiban() {
 
 @end
 
-// Hàm khởi tạo chính trễ 15 giây
+// Hàm khởi tạo chính của thư viện với độ trễ 5 giây
 __attribute__((constructor)) void init_ay_mod() {
-    // Trì hoãn 15 giây để qua hẳn lớp bảo mật lúc mở game
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    // Trì hoãn 5.0 giây cho Antiban
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         apply_antiban();
     });
 
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    // Trì hoãn 5.3 giây hiển thị Menu UI
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
         menuWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
         menuWindow.windowLevel = UIWindowLevelAlert + 100;
