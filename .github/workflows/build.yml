@@ -4,19 +4,19 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest # Hoặc macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 1. Cài đặt Theos và SDK cần thiết từ GitHub
       - name: Setup Theos
         run: |
-          git clone --recursive https://github.com/theos/theos.git ~/theos
-          # Tải iOS SDK cho Theos (nếu cần thiết cho việc biên dịch)
+          rm -rf ~/theos/sdks
+          if [ ! -d "$HOME/theos" ]; then
+            git clone --recursive https://github.com/theos/theos.git ~/theos
+          fi
           git clone https://github.com/theos/sdks.git ~/theos/sdks
 
-      # 2. Thiết lập biến môi trường THEOS
       - name: Build Dylib
         env:
           THEOS: /home/runner/theos
