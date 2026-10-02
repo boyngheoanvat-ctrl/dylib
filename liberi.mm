@@ -6,7 +6,7 @@
 #import <objc/runtime.h>
 #import <string.h>
 #import <libkern/OSCacheControl.h>
-#import "fishhook.h"
+#import "fishhook/fishhook.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -14,7 +14,7 @@
 #pragma clang diagnostic ignored "-Wunused-variable"
 
 // ==============================================
-// BIẾN TOÀN CỤC
+// BIẾN TOÀN CỤC — CÁC CÔNG TẮC
 // ==============================================
 static BOOL g_Enabled_Map        = NO;
 static BOOL g_Enabled_CamXa      = NO;
@@ -27,7 +27,7 @@ static UIButton *g_showBtn = nil;
 static CGPoint g_touchStartPos;
 
 // ==============================================
-// LẤY WINDOW
+// LẤY WINDOW CHÍNH
 // ==============================================
 static UIWindow* GetKeyWindow(void) {
     UIApplication *app = [UIApplication sharedApplication];
@@ -44,7 +44,7 @@ static UIWindow* GetKeyWindow(void) {
 }
 
 // ==============================================
-// MENU — MOD BY ERI NGUYỄN | KÉO + GIÃN ĐƯỢC
+// MENU — Mod By Eri Nguyễn
 // ==============================================
 @interface ImGuiMenuView : UIView
 @property (nonatomic, strong) UIView *titleBar;
@@ -79,7 +79,7 @@ static UIWindow* GetKeyWindow(void) {
     self.layer.cornerRadius = 0;
     self.frame = CGRectMake(15, 100, 280, 360);
     
-    // === TIÊU ĐỀ ===
+    // === Thanh tiêu đề ===
     self.titleBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 280, 34)];
     self.titleBar.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.12 alpha:1];
     [self addSubview:self.titleBar];
@@ -99,7 +99,7 @@ static UIWindow* GetKeyWindow(void) {
     [hideBtn addTarget:self action:@selector(onMinimize) forControlEvents:UIControlEventTouchUpInside];
     [self.titleBar addSubview:hideBtn];
     
-    // === CÁC MỤC ===
+    // === Các mục công tắc ===
     CGFloat y = 50;
     [self addToggle:@"Bản đồ toàn cảnh"   y:&y val:&g_Enabled_Map        sel:@selector(toggled:)];
     [self addToggle:@"Tầm nhìn xa"        y:&y val:&g_Enabled_CamXa      sel:@selector(toggled:)];
@@ -143,6 +143,7 @@ static UIWindow* GetKeyWindow(void) {
     *y += h + 8;
 }
 
+// === KÉO DI CHUYỂN ===
 - (void)setupDrag {
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
     [self.titleBar addGestureRecognizer:pan];
@@ -159,6 +160,7 @@ static UIWindow* GetKeyWindow(void) {
     }
 }
 
+// === KÉO GIÃN TO/NHỎ ===
 - (void)setupResize {
     self.resizeHandle = [[UIView alloc] initWithFrame:CGRectMake(self.bounds.size.width - 24, self.bounds.size.height - 24, 24, 24)];
     self.resizeHandle.backgroundColor = [UIColor clearColor];
@@ -218,7 +220,7 @@ static UIWindow* GetKeyWindow(void) {
 @end
 
 // ==============================================
-// NÚT HIỆN LẠI
+// NÚT HIỆN LẠI MENU
 // ==============================================
 static void SetupShowButton(void) {
     if (g_showBtn) return;
@@ -264,7 +266,7 @@ static void ShowMenu(void) {
 #pragma clang diagnostic pop
 
 // ==============================================
-// PATCH — KIỂM TRA LOG
+// PATCH BỘ NHỚ
 // ==============================================
 #include <sys/mman.h>
 
@@ -299,7 +301,7 @@ static BOOL PatchRVA(const char *img, uintptr_t rva, const void *bytes, size_t l
 }
 
 // ==============================================
-// MÃ MÁY
+// MÃ MÁY ARM64
 // ==============================================
 static const uint8_t RET[]           = {0xC0, 0x03, 0x5F, 0xD6};
 static const uint8_t RET_TRUE[]      = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
@@ -319,10 +321,10 @@ struct PatchEntry {
 };
 
 // ==============================================
-// ⚠️ ĐỊA CHỈ CŨ KHÔNG KHỚP PHIÊN BẢN 1.64.11768577
+// ⚠️ ĐỊA CHỈ CẦN CẬP NHẬT CHO 1.64.11768577
 // ==============================================
 static const struct PatchEntry g_patches[] = {
-    // TODO: CẦN TÌM LẠI ĐỊA CHỈ CHO PHIÊN BẢN 1.64.11768577
+    // TODO: Thay 0x00000000 bằng địa chỉ thật sau khi phân tích UnityFramework
     {"UnityFramework", 0x00000000, MAP_ON,       MAP_OFF,       4,  &g_Enabled_Map},
     {"UnityFramework", 0x00000000, CAM_ON,        CAM_OFF,       8,  &g_Enabled_CamXa},
     {"UnityFramework", 0x00000000, RET_TRUE,     RET_FALSE,     8,  &g_Enabled_Unti},
