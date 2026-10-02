@@ -3,9 +3,9 @@ TARGET = iphone:clang:latest:14.0
 
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = FullBypass
+TWEAK_NAME = liberi
 
-FullBypass_FILES = FullBypass.mm fishhook.c
-FullBypass_CXXFLAGS = -fobjc-arc -std=c++17 -w
+liberi_FILES = liberi.mm fishhook.c
+liberi_CXXFLAGS = -fobjc-arc -std=c++17 -w
 
 include $(THEOS_MAKE_PATH)/tweak.mk
